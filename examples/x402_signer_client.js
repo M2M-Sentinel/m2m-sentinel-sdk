@@ -1,0 +1,206 @@
+'use strict';
+
+/**
+ * Facilitator-Independent Headless x402 Signer Client.
+ *
+ * Implements automated HTTP 402 challenge negotiation and EIP-712 / EIP-3009
+ * transfer authorization signing directly on Base mainnet (chainId: 8453).
+ * Zero browser or UI wallet dependencies — pure headless operation for autonomous agents.
+ */
+
+const https = require('https');
+const http = require('http');
+const crypto = require('crypto');
+const { ethers } = require('ethers');
+
+const BASE_USDC_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const BASE_CHAIN_ID = 8453;
+
+function parsePaymentHeader(value) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch (_) {}
+  try {
+    const normalized = String(value).replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+  } catch (_) {
+    return null;
+  }
+}
+
+function parsePriceToUnits(priceStr, decimals = 6) {
+  if (typeof priceStr === 'number') return BigInt(Math.round(priceStr * 10 ** decimals));
+  const clean = String(priceStr).replace(/[^0-9.]/g, '');
+  const [whole, fraction = ''] = clean.split('.');
+  const paddedFraction = (fraction + '0'.repeat(decimals)).slice(0, decimals);
+  return BigInt(whole || '0') * BigInt(10 ** decimals) + BigInt(paddedFraction);
+}
+
+class X402SignerClient {
+  constructor(options = {}) {
+    this.wallet = options.wallet || (options.privateKey ? new ethers.Wallet(options.privateKey) : null);
+    this.baseUrl = options.baseUrl || 'https://m2msentinel.vercel.app';
+    this.timeoutMs = Number(options.timeoutMs || 30000);
+  }
+
+  async signPaymentAuthorization(challenge) {
+    if (!this.wallet) {
+      throw new Error('Signer wallet is required to sign x402 payment authorization');
+    }
+
+    const payTo = challenge.payTo || challenge.recipient || '0x8b317cc0e6a8eefee67bfef7fd18d4076735e5d3';
+    const amountUnits = challenge.maxAmountRequired || challenge.amountUnits || parsePriceToUnits(challenge.amount || challenge.price || '$0.005', 6).toString();
+    const tokenContract = challenge.assetContract || BASE_USDC_CONTRACT;
+    const chainId = Number(challenge.chainId || BASE_CHAIN_ID);
+
+    const now = Math.floor(Date.now() / 1000);
+    const validAfter = now - 60;
+    const validBefore = now + 3600;
+    const nonce = '0x' + crypto.randomBytes(32).toString('hex');
+
+    const domain = {
+      name: challenge.tokenName || 'USD Coin',
+      version: challenge.tokenVersion || '2',
+      chainId,
+      verifyingContract: tokenContract
+    };
+
+    const types = {
+      TransferWithAuthorization: [
+        { name: 'from', type: 'address' },
+        { name: 'to', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'validAfter', type: 'uint256' },
+        { name: 'validBefore', type: 'uint256' },
+        { name: 'nonce', type: 'bytes32' }
+      ]
+    };
+
+    const message = {
+      from: await this.wallet.getAddress(),
+      to: payTo,
+      value: amountUnits.toString(),
+      validAfter,
+      validBefore,
+      nonce
+    };
+
+    let signature;
+    if (typeof this.wallet.signTypedData === 'function') {
+      signature = await this.wallet.signTypedData(domain, types, message);
+    } else {
+      signature = await this.wallet._signTypedData(domain, types, message);
+    }
+
+    const sigParts = ethers.Signature.from(signature);
+
+    return {
+      x402Version: 2,
+      scheme: 'eip3009',
+      network: 'base',
+      chainId,
+      asset: 'USDC',
+      assetContract: tokenContract,
+      authorization: {
+        from: message.from,
+        to: message.to,
+        value: message.value,
+        validAfter,
+        validBefore,
+        nonce,
+        v: sigParts.v,
+        r: sigParts.r,
+        s: sigParts.s,
+        signature
+      }
+    };
+  }
+
+  async request(endpointPath, options = {}) {
+    const url = new URL(endpointPath, this.baseUrl);
+    const isHttps = url.protocol === 'https:';
+    const transport = isHttps ? https : http;
+
+    const perform = (headers = {}) => new Promise((resolve, reject) => {
+      const allHeaders = {
+        Accept: 'application/json',
+        'User-Agent': 'M2MSentinel-X402Signer/1.1.0',
+        ...options.headers,
+        ...headers
+      };
+
+      const req = transport.request(url, {
+        method: options.method || 'GET',
+        headers: allHeaders,
+        timeout: this.timeoutMs
+      }, (res) => {
+        let data = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          let body = null;
+          if (data) {
+            try { body = JSON.parse(data); } catch (_) { body = { raw: data }; }
+          }
+          resolve({
+            statusCode: res.statusCode,
+            headers: res.headers,
+            body
+          });
+        });
+      });
+
+      req.on('timeout', () => req.destroy(new Error('Request timeout')));
+      req.on('error', reject);
+      if (options.body) {
+        req.write(typeof options.body === 'string' ? options.body : JSON.stringify(options.body));
+      }
+      req.end();
+    });
+
+    // Step 1: initial request
+    const firstRes = await perform();
+
+    // If 200 OK or not 402, return immediately
+    if (firstRes.statusCode !== 402) {
+      return firstRes;
+    }
+
+    // Step 2: Extract payment challenge
+    const challengeHeader = firstRes.headers['payment-required'] || firstRes.headers['x-payment-required'];
+    let challenge = parsePaymentHeader(challengeHeader);
+    if (!challenge && firstRes.body && (firstRes.body.accepts || firstRes.body.paymentRequired)) {
+      challenge = firstRes.body.accepts ? firstRes.body.accepts[0] : firstRes.body.paymentRequired;
+    }
+
+    if (!challenge) {
+      throw new Error('HTTP 402 received but no valid payment challenge was present');
+    }
+
+    // Step 3: Sign payment authorization
+    const paymentPayload = await this.signPaymentAuthorization(challenge);
+    const encodedPaymentHeader = Buffer.from(JSON.stringify(paymentPayload)).toString('base64');
+
+    // Step 4: Re-submit request with payment authorization
+    const paidRes = await perform({
+      'x-payment-response': encodedPaymentHeader,
+      'payment-response': encodedPaymentHeader
+    });
+
+    paidRes.paymentPayload = paymentPayload;
+    return paidRes;
+  }
+}
+
+module.exports = {
+  X402SignerClient,
+  BASE_USDC_CONTRACT,
+  BASE_CHAIN_ID,
+  parsePaymentHeader,
+  parsePriceToUnits
+};
+
+if (require.main === module) {
+  console.log('M2M Sentinel Headless x402 Signer Client ready.');
+}

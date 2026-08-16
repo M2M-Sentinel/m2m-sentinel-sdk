@@ -1,0 +1,41 @@
+{
+  "name": "m2m-sentinel-sdk",
+  "version": "1.1.1",
+  "description": "JavaScript client for M2M Sentinel Base bytecode capability, proxy and market observations",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "bin": {
+    "m2m-sentinel-mcp": "./mcp_server.js",
+    "m2m-sentinel": "./mcp_server.js"
+  },
+  "license": "MIT",
+  "homepage": "https://m2msentinel.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/M2M-Sentinel/m2m-sentinel-sdk.git"
+  },
+  "bugs": {
+    "url": "https://m2msentinel.com/docs.html"
+  },
+  "keywords": [
+    "web3",
+    "x402",
+    "m2m-sentinel",
+    "base",
+    "bytecode-capabilities",
+    "proxy-detection",
+    "agents"
+  ],
+  "author": "M2M Sentinel",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "m2m_sentinel_sdk.js",
+    "agent_adapter.js",
+    "eliza_plugin.js",
+    "mcp_server.js",
+    "README.md",
+    "typescript/"
+  ]
+}
+
