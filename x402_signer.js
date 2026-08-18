@@ -49,29 +49,33 @@ class X402SignerClient {
     this.maxAmountUnits = parsePriceToUnits(this.maxPriceUsd, 6);
   }
 
-  async signPaymentAuthorization(challenge) {
+  async signPaymentAuthorization(challenge = {}) {
     if (!this.wallet) {
       throw new Error('Signer wallet is required to sign x402 payment authorization');
     }
 
-    const payTo = challenge.payTo || challenge.recipient || this.expectedRecipient;
-    const amountUnits = challenge.maxAmountRequired || challenge.amountUnits || parsePriceToUnits(challenge.amount || challenge.price || '$0.005', 6).toString();
-    const tokenContract = challenge.assetContract || BASE_USDC_CONTRACT;
-    const chainId = Number(challenge.chainId || BASE_CHAIN_ID);
+    // 1. HARDCODED LOCAL SECURITY CONSTANTS (Never challenge-controlled)
+    const chainId = BASE_CHAIN_ID; // Base Mainnet (8453)
+    const tokenContract = BASE_USDC_CONTRACT; // Base USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+    const payTo = this.expectedRecipient; // M2M Sentinel Payout (0x6d6c398390cfb88f1cd42715b84906a0bd6652aa)
 
-    // Local Security Invariant Checks
-    if (chainId !== BASE_CHAIN_ID) {
-      throw new Error(`[x402 Security Policy] Refusing to sign on unverified network chainId: ${chainId}. Expected Base Mainnet (8453).`);
+    // 2. STRICT CHALLENGE INTEGRITY CHECKS (Refuse if challenge alters network, asset, or recipient)
+    if (challenge.chainId && Number(challenge.chainId) !== BASE_CHAIN_ID) {
+      throw new Error(`[x402 Security Policy] Refusing to sign on unverified network chainId: ${challenge.chainId}. Autonomous signer strictly requires Base Mainnet (8453).`);
     }
-    if (tokenContract.toLowerCase() !== BASE_USDC_CONTRACT.toLowerCase()) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unapproved asset: ${tokenContract}. Expected Base USDC (${BASE_USDC_CONTRACT}).`);
+    if (challenge.assetContract && challenge.assetContract.toLowerCase() !== BASE_USDC_CONTRACT.toLowerCase()) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unapproved asset: ${challenge.assetContract}. Autonomous signer strictly requires Base USDC (${BASE_USDC_CONTRACT}).`);
     }
-    if (payTo.toLowerCase() !== this.expectedRecipient.toLowerCase()) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected recipient: ${payTo}. Expected ${this.expectedRecipient}.`);
+    if (challenge.payTo && challenge.payTo.toLowerCase() !== this.expectedRecipient.toLowerCase()) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected recipient: ${challenge.payTo}. Autonomous signer strictly requires ${this.expectedRecipient}.`);
     }
-    if (BigInt(amountUnits) > this.maxAmountUnits) {
-      throw new Error(`[x402 Security Policy] Requested amount (${amountUnits} units) exceeds local client authorized price ceiling (${this.maxAmountUnits.toString()} units).`);
+
+    // 3. STRICT LOCAL PRICE CEILING CHECK
+    const requestedAmountUnits = challenge.maxAmountRequired || challenge.amountUnits || parsePriceToUnits(challenge.amount || challenge.price || '$0.005', 6).toString();
+    if (BigInt(requestedAmountUnits) > this.maxAmountUnits) {
+      throw new Error(`[x402 Security Policy] Requested amount (${requestedAmountUnits} units) exceeds local client authorized price ceiling (${this.maxAmountUnits.toString()} units / $${this.maxPriceUsd}).`);
     }
+    const amountUnits = requestedAmountUnits;
 
     const now = Math.floor(Date.now() / 1000);
     const validAfter = now - 60;

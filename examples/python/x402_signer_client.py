@@ -45,24 +45,31 @@ class X402SignerClient:
                 return body["paymentRequired"]
         return None
 
-    def sign_authorization(self, challenge):
+    def sign_authorization(self, challenge=None):
         if not self.private_key:
             raise ValueError("Signer private key is required to sign x402 payment authorization")
 
-        pay_to = challenge.get("payTo") or challenge.get("recipient") or self.expected_recipient
-        amount_units = str(challenge.get("maxAmountRequired") or challenge.get("amountUnits") or "5000")
-        token_contract = challenge.get("assetContract") or BASE_USDC_CONTRACT
-        chain_id = int(challenge.get("chainId") or BASE_CHAIN_ID)
+        if challenge is None:
+            challenge = {}
 
-        # Local Security Invariant Checks
-        if chain_id != BASE_CHAIN_ID:
-            raise ValueError(f"[x402 Security Policy] Refusing to sign on unverified network chainId: {chain_id}. Expected Base Mainnet (8453).")
-        if token_contract.lower() != BASE_USDC_CONTRACT.lower():
-            raise ValueError(f"[x402 Security Policy] Refusing to sign for unapproved asset: {token_contract}. Expected Base USDC ({BASE_USDC_CONTRACT}).")
-        if pay_to.lower() != self.expected_recipient.lower():
-            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected recipient: {pay_to}. Expected {self.expected_recipient}.")
-        if int(amount_units) > self.max_amount_units:
-            raise ValueError(f"[x402 Security Policy] Requested amount ({amount_units} units) exceeds local client authorized price ceiling ({self.max_amount_units} units).")
+        # 1. HARDCODED LOCAL SECURITY CONSTANTS (Never challenge-controlled)
+        chain_id = BASE_CHAIN_ID  # Base Mainnet (8453)
+        token_contract = BASE_USDC_CONTRACT  # Base USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+        pay_to = self.expected_recipient  # M2M Sentinel Payout (0x6d6c398390cfb88f1cd42715b84906a0bd6652aa)
+
+        # 2. STRICT CHALLENGE INTEGRITY CHECKS (Refuse if challenge alters network, asset, or recipient)
+        if challenge.get("chainId") and int(challenge.get("chainId")) != BASE_CHAIN_ID:
+            raise ValueError(f"[x402 Security Policy] Refusing to sign on unverified network chainId: {challenge.get('chainId')}. Autonomous signer strictly requires Base Mainnet (8453).")
+        if challenge.get("assetContract") and challenge.get("assetContract").lower() != BASE_USDC_CONTRACT.lower():
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unapproved asset: {challenge.get('assetContract')}. Autonomous signer strictly requires Base USDC ({BASE_USDC_CONTRACT}).")
+        if challenge.get("payTo") and challenge.get("payTo").lower() != self.expected_recipient.lower():
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected recipient: {challenge.get('payTo')}. Autonomous signer strictly requires {self.expected_recipient}.")
+
+        # 3. STRICT LOCAL PRICE CEILING CHECK
+        requested_amount_units = str(challenge.get("maxAmountRequired") or challenge.get("amountUnits") or "5000")
+        if int(requested_amount_units) > self.max_amount_units:
+            raise ValueError(f"[x402 Security Policy] Requested amount ({requested_amount_units} units) exceeds local client authorized price ceiling ({self.max_amount_units} units / ${self.max_price_usd}).")
+        amount_units = requested_amount_units
 
         now = int(time.time())
         valid_after = now - 60
