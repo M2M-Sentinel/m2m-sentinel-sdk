@@ -202,3 +202,99 @@ export function createViemSentinelInterceptor(apiKey?: string, baseUrl?: string,
     }
   };
 }
+
+export interface X402SignerClientOptions {
+  wallet?: any;
+  walletSigner?: any;
+  privateKey?: string;
+  baseUrl?: string;
+  timeoutMs?: number;
+}
+
+export class X402SignerClient {
+  private wallet: any;
+  private baseUrl: string;
+  private timeoutMs: number;
+
+  constructor(options: X402SignerClientOptions = {}) {
+    this.wallet = options.wallet || options.walletSigner || null;
+    this.baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
+    this.timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT_MS);
+  }
+
+  async signPaymentAuthorization(challenge: any): Promise<any> {
+    if (!this.wallet) {
+      throw new Error('Signer wallet is required to sign x402 payment authorization');
+    }
+    const payTo = challenge.payTo || challenge.recipient || '0x6d6c398390cfb88f1cd42715b84906a0bd6652aa';
+    const amountUnits = challenge.maxAmountRequired || challenge.amountUnits || '5000';
+    const tokenContract = challenge.assetContract || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+    const chainId = Number(challenge.chainId || 8453);
+
+    const now = Math.floor(Date.now() / 1000);
+    const validAfter = now - 60;
+    const validBefore = now + 3600;
+    const nonce = '0x' + Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    const domain = {
+      name: challenge.tokenName || 'USD Coin',
+      version: challenge.tokenVersion || '2',
+      chainId,
+      verifyingContract: tokenContract
+    };
+
+    const types = {
+      TransferWithAuthorization: [
+        { name: 'from', type: 'address' },
+        { name: 'to', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'validAfter', type: 'uint256' },
+        { name: 'validBefore', type: 'uint256' },
+        { name: 'nonce', type: 'bytes32' }
+      ]
+    };
+
+    const fromAddress = typeof this.wallet.getAddress === 'function'
+      ? await this.wallet.getAddress()
+      : (this.wallet.address || this.wallet.account?.address);
+
+    const message = {
+      from: fromAddress,
+      to: payTo,
+      value: amountUnits.toString(),
+      validAfter,
+      validBefore,
+      nonce
+    };
+
+    let signature: any;
+    if (typeof this.wallet.signTypedData === 'function') {
+      signature = await this.wallet.signTypedData(domain, types, message);
+    } else if (typeof this.wallet._signTypedData === 'function') {
+      signature = await this.wallet._signTypedData(domain, types, message);
+    } else {
+      throw new Error('Wallet does not implement EIP-712 signTypedData');
+    }
+
+    return {
+      x402Version: 2,
+      scheme: 'eip3009',
+      network: 'eip155:8453',
+      token: tokenContract,
+      authorization: {
+        from: message.from,
+        to: message.to,
+        value: message.value,
+        validAfter: message.validAfter,
+        validBefore: message.validBefore,
+        nonce: message.nonce,
+        signature
+      }
+    };
+  }
+}
+
+export function x402SignerClient(options?: X402SignerClientOptions): X402SignerClient {
+  return new X402SignerClient(options);
+}
+

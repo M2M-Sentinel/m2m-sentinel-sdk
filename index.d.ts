@@ -92,3 +92,22 @@ export function createViemSentinelInterceptor(
   client: M2MSentinelClient;
   inspectSwapTarget(address: string, policyOverride?: SentinelPolicy): Promise<any>;
 };
+
+export interface X402SignerClientOptions {
+  wallet?: any;
+  walletSigner?: any;
+  privateKey?: string;
+  baseUrl?: string;
+  timeoutMs?: number;
+}
+
+export class X402SignerClient {
+  constructor(options?: X402SignerClientOptions);
+  signPaymentAuthorization(challenge: any): Promise<any>;
+  fetchWithAutoPayment(path: string, options?: any): Promise<any>;
+}
+
+export function x402SignerClient(options?: X402SignerClientOptions): X402SignerClient;
+export function parsePaymentHeader(value: string | object | null): any;
+export function parsePriceToUnits(priceStr: string | number, decimals?: number): bigint;
+

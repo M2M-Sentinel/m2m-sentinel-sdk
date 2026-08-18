@@ -43,6 +43,7 @@
     "index.d.ts",
     "m2m_sentinel_sdk.js",
     "agent_adapter.js",
+    "x402_signer.js",
     "eliza_plugin.js",
     "mcp_server.js",
     "smithery.yaml",

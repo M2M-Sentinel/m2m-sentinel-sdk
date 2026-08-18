@@ -172,6 +172,7 @@ function createViemSentinelInterceptor(apiKey, baseUrl, policy) {
 }
 
 const { M2MSentinelActionProvider, m2mSentinelActionProvider } = require('./agent_adapter.js');
+const { X402SignerClient, x402SignerClient, parsePaymentHeader, parsePriceToUnits } = require('./x402_signer.js');
 
 module.exports = {
   M2MSentinelClient,
@@ -183,5 +184,9 @@ module.exports = {
   createEthersSentinelMiddleware,
   createViemSentinelInterceptor,
   M2MSentinelActionProvider,
-  m2mSentinelActionProvider
+  m2mSentinelActionProvider,
+  X402SignerClient,
+  x402SignerClient,
+  parsePaymentHeader,
+  parsePriceToUnits
 };
