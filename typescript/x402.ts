@@ -86,7 +86,7 @@ export class X402SignerClient {
     this.wallet = options.wallet || options.walletSigner || null;
     this.baseUrl = (options.baseUrl || 'https://api.m2msentinel.com').replace(/\/+$/, '');
     this.timeoutMs = Number(options.timeoutMs || 30000);
-    this.expectedRecipient = options.expectedRecipient || EXPECTED_PAYOUT_RECIPIENT;
+    this.expectedRecipient = EXPECTED_PAYOUT_RECIPIENT;
     this.maxPriceUsd = options.maxPriceUsd !== undefined ? Number(options.maxPriceUsd) : DEFAULT_MAX_PRICE_USD;
     this.maxAmountUnits = parsePriceToUnits(this.maxPriceUsd, 6);
   }
@@ -96,10 +96,10 @@ export class X402SignerClient {
       throw new Error('Signer wallet is required to sign x402 payment authorization');
     }
 
-    // 1. HARDCODED LOCAL SECURITY CONSTANTS (Never challenge-controlled)
+    // 1. IMMUTABLE LOCAL SECURITY CONSTANTS (Never challenge-controlled)
     const chainId = BASE_CHAIN_ID; // Base Mainnet (8453)
     const tokenContract = BASE_USDC_CONTRACT; // Base USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
-    const payTo = this.expectedRecipient; // M2M Sentinel Payout (0x6d6c398390cfb88f1cd42715b84906a0bd6652aa)
+    const payTo = EXPECTED_PAYOUT_RECIPIENT; // M2M Sentinel Payout (0x6d6c398390cfb88f1cd42715b84906a0bd6652aa)
 
     // 2. STRICT CHALLENGE INTEGRITY CHECKS (Refuse if challenge alters network, asset, or recipient)
     if (challenge.chainId && Number(challenge.chainId) !== BASE_CHAIN_ID) {
@@ -108,8 +108,14 @@ export class X402SignerClient {
     if (challenge.assetContract && challenge.assetContract.toLowerCase() !== BASE_USDC_CONTRACT.toLowerCase()) {
       throw new Error(`[x402 Security Policy] Refusing to sign for unapproved asset: ${challenge.assetContract}. Autonomous signer strictly requires Base USDC (${BASE_USDC_CONTRACT}).`);
     }
-    if (challenge.payTo && challenge.payTo.toLowerCase() !== this.expectedRecipient.toLowerCase()) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected recipient: ${challenge.payTo}. Autonomous signer strictly requires ${this.expectedRecipient}.`);
+    if (challenge.payTo && challenge.payTo.toLowerCase() !== EXPECTED_PAYOUT_RECIPIENT.toLowerCase()) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected recipient: ${challenge.payTo}. Autonomous signer strictly requires ${EXPECTED_PAYOUT_RECIPIENT}.`);
+    }
+    if (challenge.tokenName && challenge.tokenName !== 'USD Coin') {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected tokenName: ${challenge.tokenName}. Expected USD Coin.`);
+    }
+    if (challenge.tokenVersion && challenge.tokenVersion !== '2') {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected tokenVersion: ${challenge.tokenVersion}. Expected 2.`);
     }
 
     // 3. STRICT LOCAL PRICE CEILING CHECK
@@ -135,8 +141,8 @@ export class X402SignerClient {
     }
 
     const domain = {
-      name: challenge.tokenName || 'USD Coin',
-      version: challenge.tokenVersion || '2',
+      name: 'USD Coin',
+      version: '2',
       chainId,
       verifyingContract: tokenContract
     };

@@ -23,13 +23,13 @@ DEFAULT_MAX_PRICE_USD = 0.05  # 5 cents maximum per autonomous request
 class X402SignerClient:
     """Headless x402 payment client for autonomous Python agents on Base."""
 
-    def __init__(self, private_key=None, base_url="https://api.m2msentinel.com", timeout=30, max_price_usd=DEFAULT_MAX_PRICE_USD, expected_recipient=EXPECTED_PAYOUT_RECIPIENT):
+    def __init__(self, private_key=None, base_url="https://api.m2msentinel.com", timeout=30, max_price_usd=DEFAULT_MAX_PRICE_USD):
         self.private_key = private_key or os.getenv("M2M_AGENT_WALLET_KEY")
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.max_price_usd = float(max_price_usd)
         self.max_amount_units = int(self.max_price_usd * 1_000_000)
-        self.expected_recipient = expected_recipient
+        self.expected_recipient = EXPECTED_PAYOUT_RECIPIENT
 
     def _parse_challenge(self, header_value, body=None):
         if header_value:
@@ -54,18 +54,22 @@ class X402SignerClient:
         if challenge is None:
             challenge = {}
 
-        # 1. HARDCODED LOCAL SECURITY CONSTANTS (Never challenge-controlled)
+        # 1. IMMUTABLE LOCAL SECURITY CONSTANTS (Never challenge-controlled)
         chain_id = BASE_CHAIN_ID  # Base Mainnet (8453)
         token_contract = BASE_USDC_CONTRACT  # Base USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
-        pay_to = self.expected_recipient  # M2M Sentinel Payout (0x6d6c398390cfb88f1cd42715b84906a0bd6652aa)
+        pay_to = EXPECTED_PAYOUT_RECIPIENT  # M2M Sentinel Payout (0x6d6c398390cfb88f1cd42715b84906a0bd6652aa)
 
         # 2. STRICT CHALLENGE INTEGRITY CHECKS (Refuse if challenge alters network, asset, or recipient)
         if challenge.get("chainId") and int(challenge.get("chainId")) != BASE_CHAIN_ID:
             raise ValueError(f"[x402 Security Policy] Refusing to sign on unverified network chainId: {challenge.get('chainId')}. Autonomous signer strictly requires Base Mainnet (8453).")
         if challenge.get("assetContract") and challenge.get("assetContract").lower() != BASE_USDC_CONTRACT.lower():
             raise ValueError(f"[x402 Security Policy] Refusing to sign for unapproved asset: {challenge.get('assetContract')}. Autonomous signer strictly requires Base USDC ({BASE_USDC_CONTRACT}).")
-        if challenge.get("payTo") and challenge.get("payTo").lower() != self.expected_recipient.lower():
-            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected recipient: {challenge.get('payTo')}. Autonomous signer strictly requires {self.expected_recipient}.")
+        if challenge.get("payTo") and challenge.get("payTo").lower() != EXPECTED_PAYOUT_RECIPIENT.lower():
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected recipient: {challenge.get('payTo')}. Autonomous signer strictly requires {EXPECTED_PAYOUT_RECIPIENT}.")
+        if challenge.get("tokenName") and challenge.get("tokenName") != "USD Coin":
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected tokenName: {challenge.get('tokenName')}. Expected USD Coin.")
+        if challenge.get("tokenVersion") and challenge.get("tokenVersion") != "2":
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected tokenVersion: {challenge.get('tokenVersion')}. Expected 2.")
 
         # 3. STRICT LOCAL PRICE CEILING CHECK
         requested_amount_units = str(challenge.get("maxAmountRequired") or challenge.get("amountUnits") or "5000")
