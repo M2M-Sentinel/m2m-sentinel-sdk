@@ -6,7 +6,7 @@ long_description = (this_directory / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="m2m-sentinel",
-    version="1.1.0",
+    version="1.1.1",
     packages=find_packages(),
     description="Python client for M2M Sentinel Base bytecode capability, proxy and market observations",
     long_description=long_description,

@@ -1,4 +1,9 @@
-// UNSUPPORTED / COMMUNITY PREVIEW — not covered by the supported-SDK guarantee; verify against /openapi.json before production use.
+/**
+ * M2M Sentinel ElizaOS Production Adapter Plugin
+ * 
+ * Provides automated pre-transaction contract capability preflight and proxy inspection
+ * actions for autonomous agents running on the ElizaOS runtime framework.
+ */
 
 const { M2MSentinelClient } = require('./index.js');
 
