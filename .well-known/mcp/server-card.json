@@ -1,0 +1,89 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/server-card.json",
+  "serverInfo": {
+    "name": "m2m-sentinel",
+    "version": "1.1.1",
+    "description": "Deterministic EVM bytecode capability intelligence, EIP-1967 proxy resolution, gas recommendations, DEX token prices, liquidity telemetry, and whale signals for Base agents."
+  },
+  "homepage": "https://m2msentinel.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/M2M-Sentinel/m2m-sentinel-sdk"
+  },
+  "transports": {
+    "stdio": {
+      "command": "npx",
+      "args": ["-y", "m2m-sentinel-sdk"]
+    },
+    "sse": {
+      "url": "https://api.m2msentinel.com/sse",
+      "messageUrl": "https://api.m2msentinel.com/messages"
+    }
+  },
+  "authentication": {
+    "type": "apiKey",
+    "header": "x-api-key",
+    "env": "M2M_SENTINEL_API_KEY",
+    "description": "Optional API key for higher rate limits and paid tier access. Public free tier works without key."
+  },
+  "tools": [
+    {
+      "name": "m2m_audit_contract",
+      "description": "Return selected static bytecode capability observations, common proxy resolution, limitations, and provenance for a Base contract.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string", "description": "Base contract address (0x-prefixed 40-hex)" }
+        },
+        "required": ["address"]
+      }
+    },
+    {
+      "name": "m2m_get_gas_metrics",
+      "description": "Return sourced Base gas fee metrics and execution recommendations.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "m2m_get_token_price",
+      "description": "Return sourced Base DEX token price observation for allowlisted assets (e.g. USDC, WETH).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "symbol": { "type": "string", "description": "Token symbol (e.g. USDC, WETH)" }
+        },
+        "required": ["symbol"]
+      }
+    },
+    {
+      "name": "m2m_get_dex_liquidity",
+      "description": "Return tracked Base DEX pool reserve and liquidity metrics.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pair": { "type": "string", "description": "DEX pair identifier (e.g. WETH-USDC)" }
+        }
+      }
+    },
+    {
+      "name": "m2m_get_whale_signals",
+      "description": "Return tracked Base whale transfer and concentration signals.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "number", "description": "Maximum signals to retrieve (1-50)" }
+        }
+      }
+    },
+    {
+      "name": "m2m_get_service_status",
+      "description": "Return real-time operational status of M2M Sentinel upstream RPC and persistence rails.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

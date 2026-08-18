@@ -1,0 +1,27 @@
+# Smithery MCP Server Configuration
+# https://smithery.ai/docs/config
+
+startCommand:
+  type: stdio
+  command: npx
+  args:
+    - -y
+    - m2m-sentinel-sdk
+  configSchema:
+    type: object
+    properties:
+      M2M_SENTINEL_API_KEY:
+        type: string
+        title: M2M Sentinel API Key
+        description: Optional API key for higher rate limits. Public free tier works without key.
+        default: ""
+
+configSchema:
+  type: object
+  properties:
+    M2M_SENTINEL_API_KEY:
+      type: string
+      title: M2M Sentinel API Key
+      description: Optional API key for higher rate limits. Public free tier works without key.
+      default: ""
+

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/registry/main/docs/reference/server-json/draft/server.schema.json",
+  "name": "io.github.m2m-sentinel/m2m-sentinel-sdk",
+  "title": "M2M Sentinel",
+  "description": "Deterministic EVM bytecode capability intelligence, EIP-1967 proxy resolution, gas recommendations, DEX token prices, liquidity telemetry, and whale signals for Base agents.",
+  "version": "1.1.1",
+  "websiteUrl": "https://m2msentinel.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/M2M-Sentinel/m2m-sentinel-sdk"
+  },
+  "package": {
+    "registryType": "npm",
+    "identifier": "m2m-sentinel-sdk",
+    "version": "1.1.1",
+    "command": "npx",
+    "args": ["-y", "m2m-sentinel-sdk"]
+  }
+}
