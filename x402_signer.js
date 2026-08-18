@@ -36,11 +36,17 @@ function parsePriceToUnits(priceStr, decimals = 6) {
   return BigInt(whole || '0') * BigInt(10 ** decimals) + BigInt(paddedFraction);
 }
 
+const EXPECTED_PAYOUT_RECIPIENT = '0x6d6c398390cfb88f1cd42715b84906a0bd6652aa';
+const DEFAULT_MAX_PRICE_USD = 0.05; // 5 cents maximum per autonomous request
+
 class X402SignerClient {
   constructor(options = {}) {
     this.wallet = options.wallet || options.walletSigner || null;
     this.baseUrl = (options.baseUrl || 'https://api.m2msentinel.com').replace(/\/+$/, '');
     this.timeoutMs = Number(options.timeoutMs || 30000);
+    this.expectedRecipient = options.expectedRecipient || EXPECTED_PAYOUT_RECIPIENT;
+    this.maxPriceUsd = options.maxPriceUsd !== undefined ? Number(options.maxPriceUsd) : DEFAULT_MAX_PRICE_USD;
+    this.maxAmountUnits = parsePriceToUnits(this.maxPriceUsd, 6);
   }
 
   async signPaymentAuthorization(challenge) {
@@ -48,10 +54,24 @@ class X402SignerClient {
       throw new Error('Signer wallet is required to sign x402 payment authorization');
     }
 
-    const payTo = challenge.payTo || challenge.recipient || '0x6d6c398390cfb88f1cd42715b84906a0bd6652aa';
+    const payTo = challenge.payTo || challenge.recipient || this.expectedRecipient;
     const amountUnits = challenge.maxAmountRequired || challenge.amountUnits || parsePriceToUnits(challenge.amount || challenge.price || '$0.005', 6).toString();
     const tokenContract = challenge.assetContract || BASE_USDC_CONTRACT;
     const chainId = Number(challenge.chainId || BASE_CHAIN_ID);
+
+    // Local Security Invariant Checks
+    if (chainId !== BASE_CHAIN_ID) {
+      throw new Error(`[x402 Security Policy] Refusing to sign on unverified network chainId: ${chainId}. Expected Base Mainnet (8453).`);
+    }
+    if (tokenContract.toLowerCase() !== BASE_USDC_CONTRACT.toLowerCase()) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unapproved asset: ${tokenContract}. Expected Base USDC (${BASE_USDC_CONTRACT}).`);
+    }
+    if (payTo.toLowerCase() !== this.expectedRecipient.toLowerCase()) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected recipient: ${payTo}. Expected ${this.expectedRecipient}.`);
+    }
+    if (BigInt(amountUnits) > this.maxAmountUnits) {
+      throw new Error(`[x402 Security Policy] Requested amount (${amountUnits} units) exceeds local client authorized price ceiling (${this.maxAmountUnits.toString()} units).`);
+    }
 
     const now = Math.floor(Date.now() / 1000);
     const validAfter = now - 60;

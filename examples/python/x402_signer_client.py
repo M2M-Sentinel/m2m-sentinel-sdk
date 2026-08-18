@@ -16,11 +16,18 @@ BASE_USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 BASE_CHAIN_ID = 8453
 
 
+EXPECTED_PAYOUT_RECIPIENT = "0x6d6c398390cfb88f1cd42715b84906a0bd6652aa"
+DEFAULT_MAX_PRICE_USD = 0.05  # 5 cents maximum per autonomous request
+
+
 class X402SignerClient:
-    def __init__(self, private_key=None, base_url="https://api.m2msentinel.com", timeout=30):
+    def __init__(self, private_key=None, base_url="https://api.m2msentinel.com", timeout=30, max_price_usd=DEFAULT_MAX_PRICE_USD, expected_recipient=EXPECTED_PAYOUT_RECIPIENT):
         self.private_key = private_key or os.getenv("OPERATOR_TEST_WALLET_KEY")
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.max_price_usd = float(max_price_usd)
+        self.max_amount_units = int(self.max_price_usd * 1_000_000)
+        self.expected_recipient = expected_recipient
 
     def _parse_challenge(self, header_value, body):
         if header_value:
@@ -42,10 +49,20 @@ class X402SignerClient:
         if not self.private_key:
             raise ValueError("Signer private key is required to sign x402 payment authorization")
 
-        pay_to = challenge.get("payTo") or challenge.get("recipient") or "0x6d6c398390cfb88f1cd42715b84906a0bd6652aa"
+        pay_to = challenge.get("payTo") or challenge.get("recipient") or self.expected_recipient
         amount_units = str(challenge.get("maxAmountRequired") or challenge.get("amountUnits") or "5000")
         token_contract = challenge.get("assetContract") or BASE_USDC_CONTRACT
         chain_id = int(challenge.get("chainId") or BASE_CHAIN_ID)
+
+        # Local Security Invariant Checks
+        if chain_id != BASE_CHAIN_ID:
+            raise ValueError(f"[x402 Security Policy] Refusing to sign on unverified network chainId: {chain_id}. Expected Base Mainnet (8453).")
+        if token_contract.lower() != BASE_USDC_CONTRACT.lower():
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unapproved asset: {token_contract}. Expected Base USDC ({BASE_USDC_CONTRACT}).")
+        if pay_to.lower() != self.expected_recipient.lower():
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected recipient: {pay_to}. Expected {self.expected_recipient}.")
+        if int(amount_units) > self.max_amount_units:
+            raise ValueError(f"[x402 Security Policy] Requested amount ({amount_units} units) exceeds local client authorized price ceiling ({self.max_amount_units} units).")
 
         now = int(time.time())
         valid_after = now - 60
