@@ -62,33 +62,79 @@ class X402SignerClient {
     const tokenContract = BASE_USDC_CONTRACT; // Base USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
     const payTo = EXPECTED_PAYOUT_RECIPIENT; // M2M Sentinel Payout (0x6d6c398390cfb88f1cd42715b84906a0bd6652aa)
 
+    // x402 v2 nests the offer under `accepts`. Reading the flat shape alone made
+    // every lookup below miss, so the integrity checks passed vacuously and the
+    // amount silently fell back to a hardcoded default -- signing an
+    // authorization for less than the server demanded, which is refused. Read
+    // the offer first, then keep the flat shape as a fallback for older servers.
+    const offer = (Array.isArray(challenge.accepts) && challenge.accepts[0]) || challenge;
+    const offeredChainId = typeof offer.network === 'string' && offer.network.startsWith('eip155:')
+      ? Number(offer.network.slice('eip155:'.length))
+      : (offer.chainId || challenge.chainId);
+    // v2 carries the address in `asset`; the legacy shape carries a symbol there
+    // and the address in `assetContract`. Only ever compare address to address,
+    // so a symbol cannot be mistaken for a mismatched contract.
+    const offeredAsset = [offer.assetContract, challenge.assetContract, offer.asset, challenge.asset]
+      .find((value) => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value)) || null;
+    const offeredPayTo = offer.payTo || offer.recipient || challenge.payTo;
+    const offeredTokenName = (offer.extra && offer.extra.name) || challenge.tokenName;
+    const offeredTokenVersion = (offer.extra && offer.extra.version) || challenge.tokenVersion;
+
     // 2. STRICT CHALLENGE INTEGRITY CHECKS (Refuse if challenge alters network, asset, or recipient)
-    if (challenge.chainId && Number(challenge.chainId) !== BASE_CHAIN_ID) {
-      throw new Error(`[x402 Security Policy] Refusing to sign on unverified network chainId: ${challenge.chainId}. Autonomous signer strictly requires Base Mainnet (8453).`);
+    if (offeredChainId && Number(offeredChainId) !== BASE_CHAIN_ID) {
+      throw new Error(`[x402 Security Policy] Refusing to sign on unverified network chainId: ${offeredChainId}. Autonomous signer strictly requires Base Mainnet (8453).`);
     }
-    if (challenge.assetContract && challenge.assetContract.toLowerCase() !== BASE_USDC_CONTRACT.toLowerCase()) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unapproved asset: ${challenge.assetContract}. Autonomous signer strictly requires Base USDC (${BASE_USDC_CONTRACT}).`);
+    if (offeredAsset && offeredAsset.toLowerCase() !== BASE_USDC_CONTRACT.toLowerCase()) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unapproved asset: ${offeredAsset}. Autonomous signer strictly requires Base USDC (${BASE_USDC_CONTRACT}).`);
     }
-    if (challenge.payTo && challenge.payTo.toLowerCase() !== EXPECTED_PAYOUT_RECIPIENT.toLowerCase()) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected recipient: ${challenge.payTo}. Autonomous signer strictly requires ${EXPECTED_PAYOUT_RECIPIENT}.`);
+    if (offeredPayTo && offeredPayTo.toLowerCase() !== EXPECTED_PAYOUT_RECIPIENT.toLowerCase()) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected recipient: ${offeredPayTo}. Autonomous signer strictly requires ${EXPECTED_PAYOUT_RECIPIENT}.`);
     }
-    if (challenge.tokenName && challenge.tokenName !== EIP712_TOKEN_NAME) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected tokenName: ${challenge.tokenName}. Expected ${EIP712_TOKEN_NAME}.`);
+    if (offeredTokenName && offeredTokenName !== EIP712_TOKEN_NAME) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected tokenName: ${offeredTokenName}. Expected ${EIP712_TOKEN_NAME}.`);
     }
-    if (challenge.tokenVersion && challenge.tokenVersion !== EIP712_TOKEN_VERSION) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected tokenVersion: ${challenge.tokenVersion}. Expected ${EIP712_TOKEN_VERSION}.`);
+    if (offeredTokenVersion && offeredTokenVersion !== EIP712_TOKEN_VERSION) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected tokenVersion: ${offeredTokenVersion}. Expected ${EIP712_TOKEN_VERSION}.`);
     }
 
     // 3. STRICT LOCAL PRICE CEILING CHECK
-    const requestedAmountUnits = challenge.maxAmountRequired || challenge.amountUnits || parsePriceToUnits(challenge.amount || challenge.price || '$0.005', 6).toString();
+    // Never invent a price. Signing a guessed amount produces an authorization
+    // the server refuses, which is indistinguishable from a rejected payment and
+    // was exactly the failure this client shipped with.
+    //
+    // v2 states base units ("20000"); the legacy shape states a price ("$0.005").
+    // Both are read, neither is assumed.
+    const rawAmount = offer.amount ?? offer.maxAmountRequired ??
+      challenge.maxAmountRequired ?? challenge.amountUnits ?? challenge.amount ?? challenge.price;
+    let requestedAmountUnits = null;
+    if (typeof rawAmount === 'number' && Number.isInteger(rawAmount) && rawAmount > 0) {
+      requestedAmountUnits = String(rawAmount);
+    } else if (typeof rawAmount === 'string' && /^\d+$/.test(rawAmount.trim())) {
+      requestedAmountUnits = rawAmount.trim();
+    } else if (typeof rawAmount === 'string' && /[$.]/.test(rawAmount)) {
+      requestedAmountUnits = parsePriceToUnits(rawAmount, 6).toString();
+    }
+    if (!requestedAmountUnits || !/^\d+$/.test(requestedAmountUnits) || BigInt(requestedAmountUnits) <= 0n) {
+      throw new Error('[x402] The challenge carried no readable amount. Refusing to guess a price.');
+    }
     if (BigInt(requestedAmountUnits) > this.maxAmountUnits) {
       throw new Error(`[x402 Security Policy] Requested amount (${requestedAmountUnits} units) exceeds local client authorized price ceiling (${this.maxAmountUnits.toString()} units / $${this.maxPriceUsd}).`);
     }
     const amountUnits = requestedAmountUnits;
 
+    // x402 v2 is identified by the presence of `accepts`. The two protocol
+    // versions need different envelopes, and sending a v1 envelope to a v2
+    // server is silently unpayable, so the version is decided once, here.
+    const isV2 = Array.isArray(challenge.accepts) && challenge.accepts.length > 0;
+
     const now = Math.floor(Date.now() / 1000);
-    const validAfter = now - 60;
-    const validBefore = now + 3600;
+    // v2 servers bound the authorization window with `maxTimeoutSeconds`. A
+    // longer window than the server advertised is not more permissive, it is
+    // simply outside what the facilitator will settle.
+    const validAfter = isV2 ? '0' : now - 60;
+    const validBefore = isV2
+      ? String(now + (Number(offer.maxTimeoutSeconds) || 120))
+      : now + 3600;
     const nonce = '0x' + crypto.randomBytes(32).toString('hex');
 
     const domain = {
@@ -127,6 +173,41 @@ class X402SignerClient {
 
     const sigParts = ethers.Signature.from(signature);
 
+    if (isV2) {
+      // The canonical v2 envelope. `accepted` is the offer echoed back
+      // verbatim: the server matches it against its own requirements with a
+      // deep equality check to learn *which* offer is being paid. Omitting it
+      // does not read as "no payment" -- it crashes the server's matcher, which
+      // answers 402 with an opaque body. Reconstructing the offer instead of
+      // echoing it fails the same way, so `offer` is passed through untouched.
+      //
+      // Note there is deliberately no top-level `scheme`/`network` here: in v2
+      // they live inside `accepted`, and the payload schema does not carry them.
+      return {
+        x402Version: 2,
+        resource: challenge.resource,
+        accepted: offer,
+          // Echo the server's advertised extensions back. The canonical client
+          // merges paymentRequired.extensions into the payload; omitting the
+          // field still settles the payment, so this failed silently -- but the
+          // CDP Bazaar indexes a resource from the bazaar extension carried by
+          // the settlement, so a payment without it is invisible to discovery.
+        extensions: challenge.extensions,
+        payload: {
+          authorization: {
+            from: message.from,
+            to: message.to,
+            value: message.value,
+            validAfter,
+            validBefore,
+            nonce
+          },
+          signature
+        }
+      };
+    }
+
+    // Legacy flat envelope, for servers that do not advertise `accepts`.
     return {
       x402Version: 2,
       scheme: 'eip3009',
@@ -216,8 +297,10 @@ class X402SignerClient {
 
     // Step 4: Re-submit request with payment authorization
     const paidRes = await perform({
-      'x-payment-response': encodedPaymentHeader,
-      'payment-response': encodedPaymentHeader
+      // x402 v2 uses PAYMENT-SIGNATURE for the signed retry. The old
+      // payment-response names are response headers and are ignored by the
+      // gateway, which made this otherwise-correct example unpayable.
+      'PAYMENT-SIGNATURE': encodedPaymentHeader
     });
 
     paidRes.paymentPayload = paymentPayload;

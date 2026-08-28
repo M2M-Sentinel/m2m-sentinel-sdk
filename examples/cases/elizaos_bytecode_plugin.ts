@@ -1,32 +1,40 @@
 /**
- * ElizaOS (ai16z) Plugin: M2M Sentinel EVM Preflight Guard
+ * ElizaOS (ai16z) Plugin: M2M Sentinel EVM Preflight Observations
  * 
- * Protects autonomous ElizaOS agents operating on Base from interacting with:
- * - Uninstantiated or broken proxy delegates (implementation slot = 0x0)
- * - Contracts with active freeze or blacklist selectors
- * - Self-destructable or malicious fallback hooks
+ * Returns factual static-bytecode evidence. The embedding agent must apply a
+ * caller-defined policy before it decides whether to execute a transaction.
  */
 
 import { Plugin, Action, IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
 
 export interface M2MAuditResponse {
-  address: string;
-  hasCode: boolean;
-  proxy: {
-    isProxy: boolean;
-    proxyType?: string;
-    implementationAddress?: string;
+  status: string;
+  audit: {
+    address: string;
+    analysisKind: string;
+    notASafetyGuarantee: boolean;
+    limitations: string[];
+    reachability?: string;
+    dissection: {
+      isValidContract: boolean;
+      capabilities: Array<{ type: string; [key: string]: unknown }>;
+    };
+    verdict: {
+      executableCapabilities: string[];
+    };
+    proxyResolution: {
+      isProxy: boolean;
+      proxyType?: string;
+      targetAddress?: string;
+    };
+    provenance?: { trustLevel?: string };
   };
-  observedCapabilities: string[];
-  trustLevel: string;
-  analysisKind: string;
-  notASafetyGuarantee: string;
 }
 
 export const auditContractAction: Action = {
   name: 'M2M_AUDIT_CONTRACT',
-  similes: ['CHECK_CONTRACT_SECURITY', 'INSPECT_TOKEN_BYTECODE', 'VERIFY_BASE_PROXY'],
-  description: 'Audits an EVM contract on Base in <35ms for proxy implementation validity and observed capabilities.',
+  similes: ['INSPECT_CONTRACT_BYTECODE', 'OBSERVE_TOKEN_BYTECODE', 'RESOLVE_BASE_PROXY'],
+  description: 'Observes static EVM bytecode capabilities and proxy-resolution evidence for a Base contract.',
   
   validate: async (runtime: IAgentRuntime, message: Memory) => {
     const text = message.content?.text || '';
@@ -61,22 +69,27 @@ export const auditContractAction: Action = {
         return false;
       }
 
-      const audit: M2MAuditResponse = await res.json();
+      const response: M2MAuditResponse = await res.json();
+      const audit = response.audit;
       
-      const isProxy = audit.proxy?.isProxy || false;
-      const impl = audit.proxy?.implementationAddress || 'None';
-      const capabilities = audit.observedCapabilities?.join(', ') || 'Standard ERC-20';
+      const isProxy = audit.proxyResolution?.isProxy || false;
+      const impl = audit.proxyResolution?.targetAddress || 'Unresolved';
+      const capabilityNames = audit.verdict?.executableCapabilities
+        || audit.dissection?.capabilities?.map((capability) => capability.type)
+        || [];
+      const capabilities = capabilityNames.join(', ') || 'None observed';
 
       const summary = [
-        `🛡️ **M2M Sentinel Preflight Report for ${address.slice(0, 8)}...**`,
-        `- **Bytecode Present**: ${audit.hasCode ? '✅ Yes' : '❌ No (EOA)'}`,
-        `- **Proxy Pattern**: ${isProxy ? `⚡ ${audit.proxy.proxyType || 'Proxy'} (Impl: ${impl})` : 'Direct Contract'}`,
+        `**M2M Sentinel Static Observation for ${address.slice(0, 8)}...**`,
+        `- **Bytecode Present**: ${audit.dissection?.isValidContract ? 'Yes' : 'No bytecode observed'}`,
+        `- **Proxy Pattern**: ${isProxy ? `${audit.proxyResolution.proxyType || 'Proxy'} (Target: ${impl})` : 'None observed'}`,
         `- **Capabilities**: ${capabilities}`,
-        `- **Trust Provenance**: ${audit.trustLevel}`,
-        `\n*Notice: ${audit.notASafetyGuarantee}*`
+        `- **Trust Provenance**: ${audit.provenance?.trustLevel || 'Not reported'}`,
+        `- **Reachability**: ${audit.reachability || 'NOT_ESTABLISHED'}`,
+        '\n*Apply a caller-defined execution policy. Static observations are not a safety guarantee.*'
       ].join('\n');
 
-      callback({ text: summary, content: audit });
+      callback({ text: summary, content: response });
       return true;
     } catch (err: any) {
       callback({ text: `Preflight audit exception: ${err.message}` });
@@ -92,7 +105,7 @@ export const auditContractAction: Action = {
       },
       {
         user: '{{agentName}}',
-        content: { text: 'Executing M2M Sentinel preflight bytecode check for 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913...' }
+        content: { text: 'Retrieving M2M Sentinel static bytecode observations for 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913...' }
       }
     ]
   ]

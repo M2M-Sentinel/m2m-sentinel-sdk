@@ -7,7 +7,7 @@ Python client for Base EVM bytecode capability, common-proxy resolution, and sou
 ### From PyPI (Recommended)
 
 ```bash
-pip install m2m-sentinel==1.1.1
+pip install m2m-sentinel==1.2.2
 ```
 
 ### From Source
@@ -26,7 +26,7 @@ from m2m_sentinel import M2MSentinelClient, X402SignerClient
 # 1. Initialize client (defaults to https://api.m2msentinel.com)
 client = M2MSentinelClient(api_key="sk_starter_...")
 
-# Inspect a Base smart contract in <35ms
+# Observe static capabilities for a Base smart contract
 response = client.audit_contract("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
 audit = response["audit"]
 print("Capability Rating:", audit["capabilityRating"])

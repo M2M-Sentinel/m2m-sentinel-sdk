@@ -1,6 +1,6 @@
 ---
 name: m2m-sentinel
-description: Deterministic EVM bytecode capability intelligence, EIP-1967 proxy resolution, gas recommendations, and preflight safety intelligence for autonomous agents on Base (Chain ID 8453).
+description: Deterministic EVM bytecode capability observations, EIP-1967 proxy resolution, gas recommendations, and sourced telemetry for autonomous applications on Base (Chain ID 8453).
 ---
 
 # M2M Sentinel Agent Skill
@@ -44,9 +44,12 @@ import { M2MSentinelClient } from 'm2m-sentinel-sdk';
 const sentinel = new M2MSentinelClient();
 const analysis = await sentinel.auditContract('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
 
-if (analysis.audit.capabilities.includes('SELFDESTRUCT')) {
-  throw new Error('Preflight Check Failed: Dangerous opcode detected.');
-}
+console.log(analysis.audit.verdict.executableCapabilities);
+console.log(analysis.audit.dissection.capabilities);
+console.log(analysis.audit.proxyResolution.targetAddress);
+
+// M2M Sentinel supplies observations, not a transaction decision. Pass these
+// fields to an explicit policy owned by the embedding application.
 ```
 
 ### C. Python SDK
@@ -84,5 +87,5 @@ const tools = new M2MSentinelLangChainTools().getTools();
 
 ## 3. Machine-Readable Discovery & Micropayments
 - **x402 Bazaar Endpoint**: `https://m2msentinel.com/.well-known/x402`
-- **Hosted SSE Gateway**: `https://api.m2msentinel.com/sse`
+- **Hosted Streamable HTTP MCP Gateway**: `https://api.m2msentinel.com/mcp`
 - **Settlement**: USDC on Base (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`) to operator `0x6d6c398390cfb88f1cd42715b84906a0bd6652aa`.

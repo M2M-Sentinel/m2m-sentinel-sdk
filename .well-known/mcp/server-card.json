@@ -2,8 +2,8 @@
   "$schema": "https://modelcontextprotocol.io/schema/server-card.json",
   "serverInfo": {
     "name": "m2m-sentinel",
-    "version": "1.1.1",
-    "description": "Deterministic EVM bytecode capability intelligence, EIP-1967 proxy resolution, gas recommendations, DEX token prices, liquidity telemetry, and whale signals for Base agents."
+    "version": "1.2.2",
+    "description": "Base bytecode capability observations, proxy resolution, gas, DEX, and transfer telemetry."
   },
   "homepage": "https://m2msentinel.com",
   "repository": {
@@ -13,29 +13,47 @@
   "transports": {
     "stdio": {
       "command": "npx",
-      "args": ["-y", "m2m-sentinel-sdk"]
+      "args": [
+        "-y",
+        "@m2msentinel/sdk",
+        "mcp"
+      ]
+    },
+    "streamableHttp": {
+      "url": "https://api.m2msentinel.com/mcp",
+      "protocolVersions": [
+        "2026-07-28",
+        "2025-11-25"
+      ]
     },
     "sse": {
       "url": "https://api.m2msentinel.com/sse",
-      "messageUrl": "https://api.m2msentinel.com/messages"
+      "messageUrl": "https://api.m2msentinel.com/messages",
+      "deprecated": true,
+      "description": "Legacy HTTP+SSE compatibility transport for 2024-11-05 clients."
     }
   },
   "authentication": {
-    "type": "apiKey",
+    "type": "apiKey-or-x402",
     "header": "x-api-key",
     "env": "M2M_SENTINEL_API_KEY",
-    "description": "Optional API key for higher rate limits and paid tier access. Public free tier works without key."
+    "description": "The transport is discoverable without a credential. Payable tool calls require an API key or a valid x402 PAYMENT-SIGNATURE at the API execution layer."
   },
   "tools": [
     {
       "name": "m2m_audit_contract",
-      "description": "Return selected static bytecode capability observations, common proxy resolution, limitations, and provenance for a Base contract.",
+      "description": "Return selected static bytecode capability observations, common proxy resolution, limitations, and provenance for a Base contract. This is factual capability observation, not a safety or exploitability guarantee.",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "address": { "type": "string", "description": "Base contract address (0x-prefixed 40-hex)" }
+          "address": {
+            "type": "string",
+            "description": "Base contract address (0x-prefixed 40-hex)"
+          }
         },
-        "required": ["address"]
+        "required": [
+          "address"
+        ]
       }
     },
     {
@@ -52,34 +70,45 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "symbol": { "type": "string", "description": "Token symbol (e.g. USDC, WETH)" }
+          "symbol": {
+            "type": "string",
+            "description": "Token symbol (e.g. USDC, WETH)"
+          }
         },
-        "required": ["symbol"]
+        "required": [
+          "symbol"
+        ]
       }
     },
     {
       "name": "m2m_get_dex_liquidity",
-      "description": "Return tracked Base DEX pool reserve and liquidity metrics.",
+      "description": "Return tracked Base DEX pool reserve, depth, and volume metrics.",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "pair": { "type": "string", "description": "DEX pair identifier (e.g. WETH-USDC)" }
+          "pair": {
+            "type": "string",
+            "description": "Optional DEX pair identifier (e.g. WETH-USDC)"
+          }
         }
       }
     },
     {
       "name": "m2m_get_whale_signals",
-      "description": "Return tracked Base whale transfer and concentration signals.",
+      "description": "Return tracked Base whale transfer and concentration signals with source provenance.",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "limit": { "type": "number", "description": "Maximum signals to retrieve (1-50)" }
+          "limit": {
+            "type": "number",
+            "description": "Maximum signals to retrieve (1-50)"
+          }
         }
       }
     },
     {
       "name": "m2m_get_service_status",
-      "description": "Return real-time operational status of M2M Sentinel upstream RPC and persistence rails.",
+      "description": "Return real-time operational status of M2M Sentinel upstream RPC, persistence, and verification rails.",
       "inputSchema": {
         "type": "object",
         "properties": {}

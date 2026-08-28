@@ -1,6 +1,6 @@
 # M2M Sentinel SDK & MCP Server
 
-Official multi-language client library, **Model Context Protocol (MCP) server**, and **Coinbase AgentKit ActionProvider** for M2M Sentinel — deterministic EVM bytecode capability intelligence, EIP-1967 proxy resolution, and preflight guards for autonomous agents operating on Base.
+Official multi-language client library, **Model Context Protocol (MCP) server**, and **Coinbase AgentKit ActionProvider** for M2M Sentinel — deterministic EVM bytecode capability observations and common-proxy resolution for autonomous applications operating on Base. Callers own transaction policy.
 
 [![npm version](https://img.shields.io/npm/v/m2m-sentinel-sdk.svg)](https://www.npmjs.com/package/m2m-sentinel-sdk)
 [![PyPI version](https://img.shields.io/pypi/v/m2m-sentinel.svg)](https://pypi.org/project/m2m-sentinel/)
@@ -33,9 +33,9 @@ npx -y @smithery/cli mcp add M2M-Sentinel/m2m-sentinel-sdk --client claude
 }
 ```
 
-### Option C: Remote HTTP / Server-Sent Events (SSE)
-* **SSE Stream**: `https://api.m2msentinel.com/sse`
-* **Messages**: `https://api.m2msentinel.com/messages`
+### Option C: Remote Streamable HTTP
+* **Current MCP endpoint**: `https://api.m2msentinel.com/mcp`
+* **Legacy HTTP+SSE compatibility**: `https://api.m2msentinel.com/sse` with messages at `https://api.m2msentinel.com/messages`
 
 ---
 
@@ -70,8 +70,10 @@ const client = new M2MSentinelClient();
 
 async function main() {
   const audit = await client.auditContract('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
-  console.log('Proxy Detected:', audit.data.proxyDetection.isProxy);
-  console.log('Capabilities:', audit.data.bytecodeAnalysis.detectedCapabilities);
+  console.log('Proxy Detected:', audit.audit.proxyResolution.isProxy);
+  console.log('Proxy Target:', audit.audit.proxyResolution.targetAddress);
+  console.log('Capabilities:', audit.audit.verdict.executableCapabilities);
+  console.log('Evidence:', audit.audit.dissection.capabilities);
 }
 
 main().catch(console.error);
@@ -90,8 +92,10 @@ from m2m_sentinel import M2MSentinelClient
 
 client = M2MSentinelClient()
 audit = client.audit_contract("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
-print("Proxy detected:", audit["data"]["proxyDetection"]["isProxy"])
-print("Capabilities:", audit["data"]["bytecodeAnalysis"]["detectedCapabilities"])
+print("Proxy detected:", audit["audit"]["proxyResolution"]["isProxy"])
+print("Proxy target:", audit["audit"]["proxyResolution"].get("targetAddress"))
+print("Capabilities:", audit["audit"]["verdict"]["executableCapabilities"])
+print("Evidence:", audit["audit"]["dissection"]["capabilities"])
 ```
 
 ---

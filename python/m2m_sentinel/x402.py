@@ -9,6 +9,7 @@ import json
 import base64
 import time
 import os
+import re
 import urllib.request
 import urllib.error
 
@@ -41,8 +42,10 @@ class X402SignerClient:
                 except Exception:
                     pass
         if isinstance(body, dict):
+            # Return the whole PaymentRequired, not accepts[0]: the signer needs
+            # `resource` and must echo the chosen offer back as `accepted`.
             if "accepts" in body and len(body["accepts"]) > 0:
-                return body["accepts"][0]
+                return body
             if "paymentRequired" in body:
                 return body["paymentRequired"]
         return None
@@ -59,27 +62,67 @@ class X402SignerClient:
         token_contract = BASE_USDC_CONTRACT  # Base USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
         pay_to = EXPECTED_PAYOUT_RECIPIENT  # M2M Sentinel Payout (0x6d6c398390cfb88f1cd42715b84906a0bd6652aa)
 
+        # x402 v2 nests the offer under `accepts` and is identified by its
+        # presence. Reading only the flat shape made every guard below miss
+        # silently -- they compared None and passed -- and the amount fell back
+        # to a hardcoded default, signing for less than the server demanded.
+        accepts = challenge.get("accepts")
+        is_v2 = isinstance(accepts, list) and len(accepts) > 0
+        offer = accepts[0] if is_v2 else challenge
+
+        offered_network = offer.get("network") or challenge.get("network")
+        if isinstance(offered_network, str) and offered_network.startswith("eip155:"):
+            offered_chain_id = offered_network.split(":", 1)[1]
+        else:
+            offered_chain_id = offer.get("chainId") or challenge.get("chainId")
+
+        # v2 carries the address in `asset`; the flat shape carries a symbol
+        # there and the address in `assetContract`. Compare addresses only.
+        offered_asset = None
+        for candidate in (offer.get("assetContract"), challenge.get("assetContract"),
+                          offer.get("asset"), challenge.get("asset")):
+            if isinstance(candidate, str) and re.match(r"^0x[0-9a-fA-F]{40}$", candidate):
+                offered_asset = candidate
+                break
+
+        offered_pay_to = offer.get("payTo") or offer.get("recipient") or challenge.get("payTo")
+        extra = offer.get("extra") or {}
+        offered_token_name = extra.get("name") or challenge.get("tokenName")
+        offered_token_version = extra.get("version") or challenge.get("tokenVersion")
+
         # 2. STRICT CHALLENGE INTEGRITY CHECKS (Refuse if challenge alters network, asset, or recipient)
-        if challenge.get("chainId") and int(challenge.get("chainId")) != BASE_CHAIN_ID:
-            raise ValueError(f"[x402 Security Policy] Refusing to sign on unverified network chainId: {challenge.get('chainId')}. Autonomous signer strictly requires Base Mainnet (8453).")
-        if challenge.get("assetContract") and challenge.get("assetContract").lower() != BASE_USDC_CONTRACT.lower():
-            raise ValueError(f"[x402 Security Policy] Refusing to sign for unapproved asset: {challenge.get('assetContract')}. Autonomous signer strictly requires Base USDC ({BASE_USDC_CONTRACT}).")
-        if challenge.get("payTo") and challenge.get("payTo").lower() != EXPECTED_PAYOUT_RECIPIENT.lower():
-            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected recipient: {challenge.get('payTo')}. Autonomous signer strictly requires {EXPECTED_PAYOUT_RECIPIENT}.")
-        if challenge.get("tokenName") and challenge.get("tokenName") != "USD Coin":
-            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected tokenName: {challenge.get('tokenName')}. Expected USD Coin.")
-        if challenge.get("tokenVersion") and challenge.get("tokenVersion") != "2":
-            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected tokenVersion: {challenge.get('tokenVersion')}. Expected 2.")
+        if offered_chain_id and int(offered_chain_id) != BASE_CHAIN_ID:
+            raise ValueError(f"[x402 Security Policy] Refusing to sign on unverified network chainId: {offered_chain_id}. Autonomous signer strictly requires Base Mainnet (8453).")
+        if offered_asset and offered_asset.lower() != BASE_USDC_CONTRACT.lower():
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unapproved asset: {offered_asset}. Autonomous signer strictly requires Base USDC ({BASE_USDC_CONTRACT}).")
+        if offered_pay_to and offered_pay_to.lower() != EXPECTED_PAYOUT_RECIPIENT.lower():
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected recipient: {offered_pay_to}. Autonomous signer strictly requires {EXPECTED_PAYOUT_RECIPIENT}.")
+        if offered_token_name and offered_token_name != "USD Coin":
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected tokenName: {offered_token_name}. Expected USD Coin.")
+        if offered_token_version and offered_token_version != "2":
+            raise ValueError(f"[x402 Security Policy] Refusing to sign for unexpected tokenVersion: {offered_token_version}. Expected 2.")
 
         # 3. STRICT LOCAL PRICE CEILING CHECK
-        requested_amount_units = str(challenge.get("maxAmountRequired") or challenge.get("amountUnits") or "5000")
+        # Never invent a price. A guessed amount produces an authorization the
+        # server refuses, which is indistinguishable from a rejected payment.
+        raw_amount = (offer.get("amount") or offer.get("maxAmountRequired") or
+                      challenge.get("maxAmountRequired") or challenge.get("amountUnits"))
+        requested_amount_units = None
+        if isinstance(raw_amount, int) and raw_amount > 0:
+            requested_amount_units = str(raw_amount)
+        elif isinstance(raw_amount, str) and raw_amount.strip().isdigit():
+            requested_amount_units = raw_amount.strip()
+        if not requested_amount_units or int(requested_amount_units) <= 0:
+            raise ValueError("[x402] The challenge carried no readable amount. Refusing to guess a price.")
         if int(requested_amount_units) > self.max_amount_units:
             raise ValueError(f"[x402 Security Policy] Requested amount ({requested_amount_units} units) exceeds local client authorized price ceiling ({self.max_amount_units} units / ${self.max_price_usd}).")
         amount_units = requested_amount_units
 
         now = int(time.time())
-        valid_after = now - 60
-        valid_before = now + 3600
+        # v2 servers bound the window with `maxTimeoutSeconds`; a longer window
+        # than advertised is not more permissive, just outside what settles.
+        valid_after = 0 if is_v2 else now - 60
+        valid_before = (now + int(offer.get("maxTimeoutSeconds") or 120)) if is_v2 else now + 3600
         nonce = "0x" + os.urandom(32).hex()
 
         try:
@@ -108,8 +151,8 @@ class X402SignerClient:
                 },
                 "primaryType": "TransferWithAuthorization",
                 "domain": {
-                    "name": challenge.get("tokenName") or "USD Coin",
-                    "version": challenge.get("tokenVersion") or "2",
+                    "name": offered_token_name or "USD Coin",
+                    "version": offered_token_version or "2",
                     "chainId": chain_id,
                     "verifyingContract": token_contract,
                 },
@@ -126,6 +169,40 @@ class X402SignerClient:
             signable = encode_typed_data(full_message=typed_data)
             signed = Account.sign_message(signable, private_key=self.private_key)
 
+            signature_hex = signed.signature.hex()
+            if not signature_hex.startswith("0x"):
+                signature_hex = "0x" + signature_hex
+
+            if is_v2:
+                # The canonical v2 envelope. Omitting `accepted` does not read
+                # as "no payment": it crashes the server's offer matcher, which
+                # then answers 402 with an opaque body. There is deliberately no
+                # top-level scheme/network in v2 -- both live inside `accepted`.
+                return {
+                    "x402Version": 2,
+                    "resource": challenge.get("resource"),
+                    "accepted": offer,
+                    # Echo the server's advertised extensions back. The canonical
+                    # client merges them into the payload; omitting the field
+                    # still settles the payment, so this failed silently -- but
+                    # the CDP Bazaar indexes a resource from the bazaar extension
+                    # carried by the settlement, so a payment without it is
+                    # invisible to discovery.
+                    "extensions": challenge.get("extensions"),
+                    "payload": {
+                        "authorization": {
+                            "from": from_address,
+                            "to": pay_to,
+                            "value": amount_units,
+                            "validAfter": str(valid_after),
+                            "validBefore": str(valid_before),
+                            "nonce": nonce,
+                        },
+                        "signature": signature_hex,
+                    },
+                }
+
+            # Legacy flat envelope, for servers that do not advertise `accepts`.
             return {
                 "x402Version": 2,
                 "scheme": "eip3009",
@@ -148,7 +225,7 @@ class X402SignerClient:
 
     def fetch_with_auto_payment(self, path, method="GET", headers=None, body=None):
         url = path if path.startswith("http") else f"{self.base_url}/{path.lstrip('/')}"
-        req_headers = {"Accept": "application/json", "User-Agent": "M2M-Sentinel-Python-Signer/1.1.1"}
+        req_headers = {"Accept": "application/json", "User-Agent": "M2M-Sentinel-Python-Signer/1.2.2"}
         if headers:
             req_headers.update(headers)
 

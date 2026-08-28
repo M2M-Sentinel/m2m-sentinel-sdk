@@ -1,8 +1,9 @@
 """
 LangChain BaseTool: M2M Sentinel EVM Preflight Tool
 
-Enables autonomous LangChain agents to audit smart contracts on Base
-in <35ms prior to transaction dispatch or tool routing.
+Enables autonomous LangChain agents to observe static bytecode evidence on
+Base prior to transaction dispatch or tool routing. Execution policy remains
+the caller's responsibility.
 """
 
 import os
@@ -29,7 +30,7 @@ class ContractAuditInput(BaseModel):
 class M2MContractAuditTool(BaseTool):
     name: str = "m2m_audit_contract"
     description: str = (
-        "Fast (<35ms) EVM bytecode preflight audit tool for Base contracts. "
+        "Static EVM bytecode capability observation tool for Base contracts. "
         "Returns proxy resolution (EIP-1967/UUPS), observed capabilities, and bytecode provenance. "
         "Useful before executing token swaps or contract calls."
     )
@@ -52,6 +53,12 @@ class M2MContractAuditTool(BaseTool):
                     proxy_info = data.get("proxyResolution", data.get("proxy", {}))
                     provenance = data.get("provenance", {})
 
+                    capability_evidence = dissection.get("capabilities", [])
+                    executable_capabilities = data.get("verdict", {}).get(
+                        "executableCapabilities",
+                        [item.get("type") for item in capability_evidence if isinstance(item, dict) and item.get("type")]
+                    )
+
                     return json.dumps({
                         "address": data.get("address", address),
                         "hasCode": dissection.get("isValidContract", True),
@@ -60,10 +67,13 @@ class M2MContractAuditTool(BaseTool):
                             "proxyType": proxy_info.get("proxyType"),
                             "targetAddress": proxy_info.get("targetAddress")
                         },
-                        "detectedCapabilities": dissection.get("detectedCapabilities", []),
-                        "trustLevel": provenance.get("trustLevel", data.get("trustLevel", "HIGH_TRUST")),
+                        "capabilityEvidence": capability_evidence,
+                        "executableCapabilities": executable_capabilities,
+                        "trustLevel": provenance.get("trustLevel", "NOT_REPORTED"),
+                        "reachability": data.get("reachability", "NOT_ESTABLISHED"),
                         "notASafetyGuarantee": True,
-                        "disclaimer": "Static bytecode analysis only; does not prove reachability or economic safety."
+                        "limitations": data.get("limitations", []),
+                        "policyNotice": "Apply a caller-defined execution policy; static observations are not a safety decision."
                     }, indent=2)
                 return f"Error: Received HTTP {response.status} from M2M Sentinel"
         except urllib.error.HTTPError as e:

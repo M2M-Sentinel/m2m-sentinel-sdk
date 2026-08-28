@@ -1,8 +1,9 @@
 """
-CrewAI Preflight Security Guard Tool: M2M Sentinel
+CrewAI Preflight Capability Observation Tool: M2M Sentinel
 
-Equips CrewAI agents with real-time EVM bytecode risk auditing
-before executing on-chain transactions or routing liquidity on Base.
+Equips CrewAI agents with static EVM bytecode observations before executing
+on-chain transactions or routing liquidity on Base. The CrewAI workflow must
+apply a caller-defined execution policy.
 """
 
 import os
@@ -14,9 +15,8 @@ import urllib.error
 class M2MPreflightGuardTool:
     name: str = "M2M Preflight Bytecode Guard"
     description: str = (
-        "Inspects smart contract bytecode on Base in <35ms. "
-        "Detects proxy implementations, freeze/pause capabilities, mint hooks, "
-        "and uninstantiated implementations to prevent failed transactions."
+        "Observes smart contract bytecode capabilities and proxy resolution on Base. "
+        "Returns evidence for a caller-defined policy; it does not make a transaction decision."
     )
 
     def run(self, contract_address: str) -> dict:
@@ -40,26 +40,27 @@ class M2MPreflightGuardTool:
                     proxy_info = data.get("proxyResolution", data.get("proxy", {}))
                     provenance = data.get("provenance", {})
 
-                    detected = dissection.get("detectedCapabilities", [])
-                    has_freeze = "PAUSE_SELECTOR" in detected or "FREEZE_SELECTOR" in detected
-                    has_mint = "MINT_SELECTOR" in detected
+                    capability_evidence = dissection.get("capabilities", [])
+                    executable_capabilities = data.get("verdict", {}).get(
+                        "executableCapabilities",
+                        [item.get("type") for item in capability_evidence if isinstance(item, dict) and item.get("type")]
+                    )
                     is_proxy = proxy_info.get("isProxy", False)
-
-                    # Automated Preflight Decision for CrewAI pipeline
-                    preflight_recommendation = "PROCEED_WITH_CAUTION" if (has_freeze or has_mint) else "PROCEED"
-                    if not dissection.get("isValidContract", True):
-                        preflight_recommendation = "ABORT_NO_BYTECODE"
 
                     return {
                         "status": "SUCCESS",
                         "contract": data.get("address", contract_address),
-                        "recommendation": preflight_recommendation,
+                        "hasCode": dissection.get("isValidContract", False),
                         "isProxy": is_proxy,
                         "proxyType": proxy_info.get("proxyType"),
-                        "implementationAddress": proxy_info.get("targetAddress"),
-                        "detectedCapabilities": detected,
-                        "trustLevel": provenance.get("trustLevel", "HIGH_TRUST"),
-                        "disclaimer": "Static bytecode observations; not an audit or financial guarantee."
+                        "targetAddress": proxy_info.get("targetAddress"),
+                        "capabilityEvidence": capability_evidence,
+                        "executableCapabilities": executable_capabilities,
+                        "trustLevel": provenance.get("trustLevel", "NOT_REPORTED"),
+                        "reachability": data.get("reachability", "NOT_ESTABLISHED"),
+                        "limitations": data.get("limitations", []),
+                        "notASafetyGuarantee": True,
+                        "policyNotice": "Apply a caller-defined execution policy; static observations are not a safety decision."
                     }
                 return {"status": "ERROR", "message": f"HTTP {response.status}"}
         except urllib.error.HTTPError as e:

@@ -61,33 +61,69 @@ class X402SignerClient {
     const tokenContract = BASE_USDC_CONTRACT; // Base USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
     const payTo = EXPECTED_PAYOUT_RECIPIENT; // M2M Sentinel Payout (0x6d6c398390cfb88f1cd42715b84906a0bd6652aa)
 
+    // x402 v2 nests the offer under `accepts` and is identified by its presence.
+    // Reading only the flat shape made every check below miss silently: the
+    // guards passed vacuously because the fields they read were undefined, and
+    // the amount fell back to a hardcoded default, signing for less than the
+    // server demanded. Read the offer first, keep the flat shape as fallback.
+    const isV2 = Array.isArray(challenge.accepts) && challenge.accepts.length > 0;
+    const offer = isV2 ? challenge.accepts[0] : challenge;
+
+    const offeredChainId = typeof offer.network === 'string' && offer.network.startsWith('eip155:')
+      ? Number(offer.network.slice('eip155:'.length))
+      : (offer.chainId || challenge.chainId);
+    // v2 carries the address in `asset`; the flat shape carries a symbol there
+    // and the address in `assetContract`. Compare addresses to addresses only.
+    const offeredAsset = [offer.assetContract, challenge.assetContract, offer.asset, challenge.asset]
+      .find((value) => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value)) || null;
+    const offeredPayTo = offer.payTo || offer.recipient || challenge.payTo;
+    const offeredTokenName = (offer.extra && offer.extra.name) || challenge.tokenName;
+    const offeredTokenVersion = (offer.extra && offer.extra.version) || challenge.tokenVersion;
+
     // 2. STRICT CHALLENGE INTEGRITY CHECKS (Refuse if challenge alters network, asset, or recipient)
-    if (challenge.chainId && Number(challenge.chainId) !== BASE_CHAIN_ID) {
-      throw new Error(`[x402 Security Policy] Refusing to sign on unverified network chainId: ${challenge.chainId}. Autonomous signer strictly requires Base Mainnet (8453).`);
+    if (offeredChainId && Number(offeredChainId) !== BASE_CHAIN_ID) {
+      throw new Error(`[x402 Security Policy] Refusing to sign on unverified network chainId: ${offeredChainId}. Autonomous signer strictly requires Base Mainnet (8453).`);
     }
-    if (challenge.assetContract && challenge.assetContract.toLowerCase() !== BASE_USDC_CONTRACT.toLowerCase()) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unapproved asset: ${challenge.assetContract}. Autonomous signer strictly requires Base USDC (${BASE_USDC_CONTRACT}).`);
+    if (offeredAsset && offeredAsset.toLowerCase() !== BASE_USDC_CONTRACT.toLowerCase()) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unapproved asset: ${offeredAsset}. Autonomous signer strictly requires Base USDC (${BASE_USDC_CONTRACT}).`);
     }
-    if (challenge.payTo && challenge.payTo.toLowerCase() !== EXPECTED_PAYOUT_RECIPIENT.toLowerCase()) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected recipient: ${challenge.payTo}. Autonomous signer strictly requires ${EXPECTED_PAYOUT_RECIPIENT}.`);
+    if (offeredPayTo && offeredPayTo.toLowerCase() !== EXPECTED_PAYOUT_RECIPIENT.toLowerCase()) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected recipient: ${offeredPayTo}. Autonomous signer strictly requires ${EXPECTED_PAYOUT_RECIPIENT}.`);
     }
-    if (challenge.tokenName && challenge.tokenName !== EIP712_TOKEN_NAME) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected tokenName: ${challenge.tokenName}. Expected ${EIP712_TOKEN_NAME}.`);
+    if (offeredTokenName && offeredTokenName !== EIP712_TOKEN_NAME) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected tokenName: ${offeredTokenName}. Expected ${EIP712_TOKEN_NAME}.`);
     }
-    if (challenge.tokenVersion && challenge.tokenVersion !== EIP712_TOKEN_VERSION) {
-      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected tokenVersion: ${challenge.tokenVersion}. Expected ${EIP712_TOKEN_VERSION}.`);
+    if (offeredTokenVersion && offeredTokenVersion !== EIP712_TOKEN_VERSION) {
+      throw new Error(`[x402 Security Policy] Refusing to sign for unexpected tokenVersion: ${offeredTokenVersion}. Expected ${EIP712_TOKEN_VERSION}.`);
     }
 
     // 3. STRICT LOCAL PRICE CEILING CHECK
-    const requestedAmountUnits = challenge.maxAmountRequired || challenge.amountUnits || parsePriceToUnits(challenge.amount || challenge.price || '$0.005', 6).toString();
+    // Never invent a price. A guessed amount produces an authorization the
+    // server refuses, which is indistinguishable from a rejected payment.
+    // v2 states base units ("20000"); the flat shape states a price ("$0.005").
+    const rawAmount = offer.amount ?? offer.maxAmountRequired ??
+      challenge.maxAmountRequired ?? challenge.amountUnits ?? challenge.amount ?? challenge.price;
+    let requestedAmountUnits = null;
+    if (typeof rawAmount === 'number' && Number.isInteger(rawAmount) && rawAmount > 0) {
+      requestedAmountUnits = String(rawAmount);
+    } else if (typeof rawAmount === 'string' && /^\d+$/.test(rawAmount.trim())) {
+      requestedAmountUnits = rawAmount.trim();
+    } else if (typeof rawAmount === 'string' && /[$.]/.test(rawAmount)) {
+      requestedAmountUnits = parsePriceToUnits(rawAmount, 6).toString();
+    }
+    if (!requestedAmountUnits || !/^\d+$/.test(requestedAmountUnits) || BigInt(requestedAmountUnits) <= 0n) {
+      throw new Error('[x402] The challenge carried no readable amount. Refusing to guess a price.');
+    }
     if (BigInt(requestedAmountUnits) > this.maxAmountUnits) {
       throw new Error(`[x402 Security Policy] Requested amount (${requestedAmountUnits} units) exceeds local client authorized price ceiling (${this.maxAmountUnits.toString()} units / $${this.maxPriceUsd}).`);
     }
     const amountUnits = requestedAmountUnits;
 
     const now = Math.floor(Date.now() / 1000);
-    const validAfter = now - 60;
-    const validBefore = now + 3600;
+    // v2 servers bound the window with `maxTimeoutSeconds`; a longer window
+    // than advertised is not more permissive, just outside what settles.
+    const validAfter = isV2 ? '0' : now - 60;
+    const validBefore = isV2 ? String(now + (Number(offer.maxTimeoutSeconds) || 120)) : now + 3600;
     const nonce = '0x' + crypto.randomBytes(32).toString('hex');
 
     const domain = {
@@ -141,6 +177,39 @@ class X402SignerClient {
       v = signature.v;
     }
 
+    if (isV2) {
+      // The canonical v2 envelope. `accepted` is the offer echoed back verbatim:
+      // the server deep-equality matches it against its own requirements to learn
+      // which offer is being paid. Omitting it does not read as "no payment" --
+      // it crashes the server's matcher, which then answers 402 with an opaque
+      // body. Reconstructing the offer fails the same way, so it is passed
+      // through untouched. Note there is no top-level scheme/network in v2:
+      // both live inside `accepted`.
+      return {
+        x402Version: 2,
+        resource: challenge.resource,
+        accepted: offer,
+          // Echo the server's advertised extensions back. The canonical client
+          // merges paymentRequired.extensions into the payload; omitting the
+          // field still settles the payment, so this failed silently -- but the
+          // CDP Bazaar indexes a resource from the bazaar extension carried by
+          // the settlement, so a payment without it is invisible to discovery.
+        extensions: challenge.extensions,
+        payload: {
+          authorization: {
+            from: message.from,
+            to: message.to,
+            value: message.value,
+            validAfter: message.validAfter,
+            validBefore: message.validBefore,
+            nonce: message.nonce
+          },
+          signature: typeof signature === 'string' ? signature : `0x${r.slice(2)}${s.slice(2)}${v.toString(16)}`
+        }
+      };
+    }
+
+    // Legacy flat envelope, for servers that do not advertise `accepts`.
     return {
       x402Version: 2,
       scheme: 'eip3009',
@@ -202,7 +271,7 @@ class X402SignerClient {
         path: url.pathname + url.search,
         method: options.method || 'GET',
         headers: {
-          'User-Agent': 'M2M-Sentinel-X402Signer/1.1.1',
+          'User-Agent': 'M2M-Sentinel-X402Signer/1.2.2',
           'Accept': 'application/json',
           ...(options.headers || {})
         },

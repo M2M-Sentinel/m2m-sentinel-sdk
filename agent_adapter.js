@@ -13,6 +13,31 @@ const http = require('http');
 const DEFAULT_BASE_URL = process.env.M2M_SENTINEL_BASE_URL || 'https://api.m2msentinel.com';
 const DEFAULT_TIMEOUT_MS = Number(process.env.M2M_SENTINEL_TIMEOUT_MS || 30000);
 
+function summarizeAuditResponse(body, requestedAddress) {
+  const audit = body && body.audit ? body.audit : {};
+  const proxy = audit.proxyResolution || {};
+  const capabilities = Array.isArray(audit.verdict && audit.verdict.executableCapabilities)
+    ? audit.verdict.executableCapabilities
+    : (audit.dissection && Array.isArray(audit.dissection.capabilities)
+        ? audit.dissection.capabilities
+          .map((item) => typeof item === 'string' ? item : item && item.type)
+          .filter(Boolean)
+        : []);
+
+  return {
+    address: audit.address || requestedAddress,
+    isContract: Boolean(audit.dissection && audit.dissection.isValidContract),
+    isProxy: Boolean(proxy.isProxy),
+    proxyType: proxy.proxyType || 'NONE',
+    targetAddress: proxy.targetAddress || null,
+    executableCapabilities: capabilities,
+    reachability: audit.reachability || 'NOT_ESTABLISHED',
+    trustLevel: audit.provenance && audit.provenance.trustLevel
+      ? audit.provenance.trustLevel
+      : 'NOT_REPORTED'
+  };
+}
+
 class M2MSentinelActionProvider {
   constructor(options = {}) {
     this.name = 'm2m_sentinel';
@@ -42,7 +67,7 @@ class M2MSentinelActionProvider {
 
     const headers = {
       Accept: 'application/json',
-      'User-Agent': 'M2MSentinel-AgentKit/1.1.1',
+      'User-Agent': 'M2MSentinel-AgentKit/1.2.2',
       ...options.headers
     };
     if (this.apiKey && !headers['x-api-key']) {
@@ -98,11 +123,13 @@ class M2MSentinelActionProvider {
       });
     }
 
+    const observation = summarizeAuditResponse(res.body, address);
     return JSON.stringify({
       status: 'SUCCESS',
       data: res.body,
       notASafetyGuarantee: true,
-      observationSummary: `Contract ${address}: Type=${res.body.bytecodeAnalysis?.contractType || 'UNKNOWN'}, isProxy=${Boolean(res.body.proxyDetection?.isProxy)}`
+      observation,
+      observationSummary: `Contract ${observation.address}: isContract=${observation.isContract}, isProxy=${observation.isProxy}, proxyTarget=${observation.targetAddress || 'UNRESOLVED'}, capabilities=${observation.executableCapabilities.join(',') || 'NONE_OBSERVED'}, reachability=${observation.reachability}`
     });
   }
 
@@ -244,5 +271,6 @@ class M2MSentinelAgentTool extends M2MSentinelActionProvider {}
 module.exports = {
   M2MSentinelActionProvider,
   m2mSentinelActionProvider,
-  M2MSentinelAgentTool
+  M2MSentinelAgentTool,
+  summarizeAuditResponse
 };

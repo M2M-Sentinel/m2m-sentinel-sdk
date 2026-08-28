@@ -197,7 +197,10 @@ class X402SignerClient:
                 payment_payload = self.sign_authorization(challenge)
                 encoded = base64.b64encode(json.dumps(payment_payload).encode("utf-8")).decode("utf-8")
 
-                req_headers["x-payment-response"] = encoded
+                # x402 v2 signed retries use PAYMENT-SIGNATURE. The old
+                # payment-response name is a response header and is ignored
+                # by the gateway.
+                req_headers["PAYMENT-SIGNATURE"] = encoded
                 paid_req = urllib.request.Request(url, data=data, headers=req_headers, method=method)
                 with urllib.request.urlopen(paid_req, timeout=self.timeout) as paid_resp:
                     paid_body = json.loads(paid_resp.read().decode("utf-8"))
