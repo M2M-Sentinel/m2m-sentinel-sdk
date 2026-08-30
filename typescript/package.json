@@ -1,6 +1,6 @@
 {
   "name": "m2m-sentinel-sdk",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Source-distributed TypeScript client for M2M Sentinel Base capability intelligence API",
   "main": "index.ts",
   "types": "index.ts",

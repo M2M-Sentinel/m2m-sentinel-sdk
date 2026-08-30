@@ -18,6 +18,15 @@ export interface RecoveryChallengeOptions {
   txHash?: string;
 }
 
+export interface TransactionPreflightRequest {
+  chainId: number | string;
+  to: string;
+  data: string;
+  from?: string;
+  value?: number | string;
+  blockNumber?: number | string;
+}
+
 export interface M2MSentinelErrorOptions {
   status?: number;
   body?: any;
@@ -155,6 +164,7 @@ export class M2MSentinelClient {
   public getCapabilityScore(address: string, options?: M2MSentinelClientOptions) { return this.request<any>('GET', `/v1/security/score/${encodeURIComponent(address)}`, undefined, options); }
   /** Legacy name. The response is a capability coverage index, not a safety score. */
   public getSecurityScore(address: string, options?: M2MSentinelClientOptions) { return this.request<any>('GET', `/v1/security/score/${encodeURIComponent(address)}`, undefined, options); }
+  public preflightTransaction(transaction: TransactionPreflightRequest, options?: M2MSentinelClientOptions) { return this.request<any>('POST', '/v1/transaction/preflight', transaction, options); }
   public getGasFees(options?: M2MSentinelClientOptions) { return this.request<any>('GET', '/v1/gas/fees', undefined, options); }
   public getDexMetrics(options?: M2MSentinelClientOptions) { return this.request<any>('GET', '/v1/dex/metrics', undefined, options); }
   public getTokenPrice(symbol: string, options?: M2MSentinelClientOptions) { return this.request<any>('GET', `/v1/token/price/${encodeURIComponent(symbol)}`, undefined, options); }

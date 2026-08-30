@@ -7,7 +7,7 @@ Python client for Base EVM bytecode capability, common-proxy resolution, and sou
 ### From PyPI (Recommended)
 
 ```bash
-pip install m2m-sentinel==1.2.2
+pip install m2m-sentinel==1.2.3
 ```
 
 ### From Source
@@ -21,7 +21,7 @@ pip install .
 ## Quickstart Example
 
 ```python
-from m2m_sentinel import M2MSentinelClient, X402SignerClient
+from m2m_sentinel import AsyncM2MSentinelClient, M2MSentinelClient, X402SignerClient
 
 # 1. Initialize client (defaults to https://api.m2msentinel.com)
 client = M2MSentinelClient(api_key="sk_starter_...")
@@ -31,6 +31,20 @@ response = client.audit_contract("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
 audit = response["audit"]
 print("Capability Rating:", audit["capabilityRating"])
 print("Proxy Resolution:", audit["proxyResolution"])
+
+# Observe one exact transaction at a pinned Base block before applying
+# caller-owned signing policy. This is evidence, not a safety decision.
+transaction = {
+    "chainId": 8453,
+    "to": "0x1111111111111111111111111111111111111111",
+    "data": "0x40c10f19",
+}
+preflight = client.preflight_transaction(transaction)
+print("Executing target:", preflight.get("resolvedExecutionTarget"))
+print("Observation block:", preflight["observationBlock"])
+
+# The async facade uses the same JSON body and header-only credentials.
+# asyncio.run(AsyncM2MSentinelClient(api_key="sk_starter_...").preflight_transaction(transaction))
 
 # 2. Autonomous Headless x402 Micropayments (EIP-3009 Local Signing)
 signer = X402SignerClient(private_key="0x...")
@@ -58,6 +72,8 @@ recovery = client.create_recovery_challenge(wallet_address, tx_hash=original_pay
 | Method | Description |
 | :--- | :--- |
 | `audit_contract(address)` | Returns static opcode capability flags, proxy resolution (EIP-1967/UUPS), and bytecode provenance on Base. |
+| `preflight_transaction(transaction)` | Resolves the supplied selector's executing target at one pinned Base block and returns evidence or an explicit incomplete state; it does not make a safety decision. |
+| `AsyncM2MSentinelClient.preflight_transaction(transaction)` | Async facade for the same header-authenticated transaction-specific observation. |
 | `get_capability_score(address)` | Evaluates observed static capability patterns. (Retains `/v1/security/score/:address` for backwards compatibility). |
 | `get_gas_metrics()` | Fetches real-time Base network gas suggestions and congestion telemetry. |
 | `get_token_price(symbol)` | Sourced Base DEX price observation for allowlisted assets (USDC, WETH, etc.). |

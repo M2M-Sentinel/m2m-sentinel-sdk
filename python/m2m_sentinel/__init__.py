@@ -1,4 +1,5 @@
 from .client import (
+    AsyncM2MSentinelClient,
     M2MSentinelClient,
     M2MSentinelError,
     PaymentRequiredError,
@@ -11,6 +12,7 @@ from .llamaindex_tool import get_m2m_audit_tool
 from .x402 import X402SignerClient
 
 __all__ = [
+    "AsyncM2MSentinelClient",
     "M2MSentinelClient",
     "M2MSentinelError",
     "PaymentRequiredError",

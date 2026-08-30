@@ -271,7 +271,7 @@ class X402SignerClient {
         path: url.pathname + url.search,
         method: options.method || 'GET',
         headers: {
-          'User-Agent': 'M2M-Sentinel-X402Signer/1.2.2',
+          'User-Agent': 'M2M-Sentinel-X402Signer/1.2.3',
           'Accept': 'application/json',
           ...(options.headers || {})
         },

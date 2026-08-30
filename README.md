@@ -100,6 +100,25 @@ print("Evidence:", audit["audit"]["dissection"]["capabilities"])
 
 ---
 
+## Transaction-specific preflight example
+
+The public repository includes a standalone, mock-only transaction boundary
+example at [`examples/transaction_preflight.js`](examples/transaction_preflight.js).
+From this repository root, run:
+
+```bash
+node examples/transaction_preflight.js
+```
+
+It observes one caller-supplied Base transaction, passes the observation to a
+caller-owned policy, and reaches only a mock signing/send callback. It refuses
+to continue on unverified evidence, unresolved execution, an observation
+mismatch, or a missing Diamond selector mapping. It never signs or sends a
+transaction; optional live mode uses only a caller-supplied API-key header and
+remains the caller's responsibility.
+
+---
+
 ## 💳 5. Autonomous x402 Micropayments (Headless M2M)
 
 ```typescript

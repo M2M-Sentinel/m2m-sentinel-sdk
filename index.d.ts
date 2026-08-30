@@ -14,6 +14,15 @@ export interface RecoveryChallengeOptions {
   txHash?: string;
 }
 
+export interface TransactionPreflightRequest {
+  chainId: number | string;
+  to: string;
+  data: string;
+  from?: string;
+  value?: number | string;
+  blockNumber?: number | string;
+}
+
 export interface M2MSentinelErrorOptions {
   status?: number;
   body?: unknown;
@@ -56,6 +65,7 @@ export class M2MSentinelClient {
   getCapabilityScore(address: string, options?: M2MSentinelClientOptions): Promise<any>;
   /** Legacy alias. The response is a capability coverage index, not a safety score. */
   getSecurityScore(address: string, options?: M2MSentinelClientOptions): Promise<any>;
+  preflightTransaction(transaction: TransactionPreflightRequest, options?: M2MSentinelClientOptions): Promise<any>;
   getGasFees(options?: M2MSentinelClientOptions): Promise<any>;
   getDexMetrics(options?: M2MSentinelClientOptions): Promise<any>;
   getTokenPrice(symbol: string, options?: M2MSentinelClientOptions): Promise<any>;

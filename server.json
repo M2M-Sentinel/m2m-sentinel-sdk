@@ -3,7 +3,7 @@
   "name": "io.github.M2M-Sentinel/m2m-sentinel-sdk",
   "title": "M2M Sentinel",
   "description": "Base bytecode capability observations, proxy resolution, gas, DEX, and transfer telemetry.",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "websiteUrl": "https://m2msentinel.com",
   "repository": {
     "url": "https://github.com/M2M-Sentinel/m2m-sentinel-sdk",
@@ -13,7 +13,7 @@
     {
       "registryType": "npm",
       "identifier": "@m2msentinel/sdk",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "transport": {
         "type": "stdio"
       },

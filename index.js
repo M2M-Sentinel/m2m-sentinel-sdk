@@ -128,6 +128,9 @@ class M2MSentinelClient {
   getCapabilityScore(address, options) { return this.request('GET', '/v1/security/score/' + encodeURIComponent(address), undefined, options); }
   // Legacy method name; the response is a capability coverage index, not a safety score.
   getSecurityScore(address, options) { return this.request('GET', '/v1/security/score/' + encodeURIComponent(address), undefined, options); }
+  preflightTransaction(transaction, options) {
+    return this.request('POST', '/v1/transaction/preflight', transaction, options);
+  }
   getGasFees(options) { return this.request('GET', '/v1/gas/fees', undefined, options); }
   getDexMetrics(options) { return this.request('GET', '/v1/dex/metrics', undefined, options); }
   getTokenPrice(symbol, options) { return this.request('GET', '/v1/token/price/' + encodeURIComponent(symbol), undefined, options); }

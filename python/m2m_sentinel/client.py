@@ -1,3 +1,4 @@
+import asyncio
 import json
 import base64
 import urllib.error
@@ -55,7 +56,7 @@ class M2MSentinelClient:
     def _request(self, method, path, data=None, api_key = None, payment_signature = None, operator_token=None):
         headers = {
             "Accept": "application/json",
-            "User-Agent": "M2MSentinel-Python/1.2.2",
+            "User-Agent": "M2MSentinel-Python/1.2.3",
         }
         if data is not None:
             headers["Content-Type"] = "application/json"
@@ -145,6 +146,10 @@ class M2MSentinelClient:
     def audit_contract(self, address):
         return self._request("GET", "/v1/audit/" + urllib.parse.quote(address, safe=""))
 
+    def preflight_transaction(self, transaction):
+        """Return a strict, Base-pinned transaction observation as JSON."""
+        return self._request("POST", "/v1/transaction/preflight", transaction)
+
     def get_capability_score(self, address):
         return self._request("GET", "/v1/security/score/" + urllib.parse.quote(address, safe=""))
 
@@ -169,4 +174,21 @@ class M2MSentinelClient:
 
     def revoke_key(self, confirm=True):
         return self._request("POST", "/v1/keys/revoke", {"confirm": confirm})
+
+
+class AsyncM2MSentinelClient:
+    """Async facade for the header-authenticated transaction preflight call."""
+
+    def __init__(self, api_key=None, base_url=DEFAULT_BASE_URL, timeout=DEFAULT_TIMEOUT, payment_signature=None):
+        self._client = M2MSentinelClient(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            payment_signature=payment_signature,
+        )
+
+    async def preflight_transaction(self, transaction):
+        """Run preflight_transaction without moving credentials into the URL."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._client.preflight_transaction, transaction)
 

@@ -8,7 +8,7 @@ const readline = require('readline');
 let BASE_URL = process.env.M2M_SENTINEL_BASE_URL || 'https://api.m2msentinel.com';
 let API_KEY = process.env.M2M_SENTINEL_API_KEY || '';
 const TIMEOUT_MS = Number(process.env.M2M_SENTINEL_TIMEOUT_MS || 30000);
-const VERSION = '1.2.2';
+const VERSION = '1.2.3';
 
 const TOOLS = [
   {
