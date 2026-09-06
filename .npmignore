@@ -1,0 +1,5 @@
+typescript/node_modules/
+**/__pycache__/
+**/*.egg-info/
+python/build/
+python/dist/

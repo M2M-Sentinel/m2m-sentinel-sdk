@@ -1,0 +1,198 @@
+name: Publish MCP Registry
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v* release tag to publish
+        required: true
+        type: string
+
+# The official MCP Registry exchanges this job's short-lived GitHub OIDC
+# identity for a registry token. No package-registry credentials are used here.
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish exact server.json version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MCP_NAME: io.github.M2M-Sentinel/m2m-sentinel-sdk
+      MCP_NAME_ENCODED: io.github.M2M-Sentinel%2Fm2m-sentinel-sdk
+      MCP_REGISTRY: https://registry.modelcontextprotocol.io
+      PUBLISHER_VERSION: v1.8.1
+      PUBLISHER_URL: https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz
+      PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+      REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - name: Check out the exact release tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Set up Node.js for metadata checks
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.23.2'
+
+      - name: Resolve and verify the exact tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="$REQUESTED_TAG"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::The release tag must be a semantic v* tag, got: $TAG"
+            exit 1
+          fi
+          TAG_COMMIT="$(git rev-list -n 1 "refs/tags/$TAG")"
+          HEAD_COMMIT="$(git rev-parse HEAD)"
+          if [[ -z "$TAG_COMMIT" || "$TAG_COMMIT" != "$HEAD_COMMIT" ]]; then
+            echo "::error::HEAD is not the commit addressed by $TAG."
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      - name: Verify server and package version parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const expected = process.env.VERSION;
+          const mcpName = process.env.MCP_NAME;
+          const server = JSON.parse(fs.readFileSync('server.json', 'utf8'));
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (server.name !== mcpName) throw new Error(`server.json name mismatch: ${server.name}`);
+          if (server.version !== expected) throw new Error(`server.json version ${server.version} does not match ${expected}`);
+          if (pkg.name !== '@m2msentinel/sdk') throw new Error(`package name mismatch: ${pkg.name}`);
+          if (pkg.version !== expected) throw new Error(`package.json version ${pkg.version} does not match ${expected}`);
+          if (pkg.mcpName !== mcpName) throw new Error(`package.json mcpName ${pkg.mcpName} does not match ${mcpName}`);
+          const listed = (server.packages || []).find((item) => item.registryType === 'npm' && item.identifier === '@m2msentinel/sdk');
+          if (!listed || listed.version !== expected) throw new Error('server.json does not list the exact scoped npm package version');
+          console.log(`Verified ${process.env.TAG} -> ${mcpName}@${expected}`);
+          NODE
+
+      - name: Verify the underlying scoped npm release and mcpName
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm_metadata="$RUNNER_TEMP/m2msentinel-sdk.json"
+          curl --fail --silent --show-error --location --retry 5 --retry-delay 2 \
+            "https://registry.npmjs.org/@m2msentinel%2fsdk/$VERSION" \
+            --output "$npm_metadata"
+          NPM_METADATA="$npm_metadata" node <<'NODE'
+          const fs = require('node:fs');
+          const pkg = JSON.parse(fs.readFileSync(process.env.NPM_METADATA, 'utf8'));
+          if (pkg.name !== '@m2msentinel/sdk') throw new Error(`npm package name mismatch: ${pkg.name}`);
+          if (pkg.version !== process.env.VERSION) throw new Error(`npm package version ${pkg.version} does not match ${process.env.VERSION}`);
+          if (pkg.mcpName !== process.env.MCP_NAME) throw new Error(`npm mcpName ${pkg.mcpName} does not match ${process.env.MCP_NAME}`);
+          console.log(`Verified npm registry metadata for ${pkg.name}@${pkg.version}`);
+          NODE
+
+      - name: Idempotent exact-version MCP Registry precheck
+        id: precheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$RUNNER_TEMP/mcp-registry-version.json"
+          endpoint="$MCP_REGISTRY/v0.1/servers/$MCP_NAME_ENCODED/versions/$VERSION"
+          status="$(curl --silent --show-error --location --retry 5 --retry-delay 2 \
+            --output "$response" --write-out '%{http_code}' "$endpoint")"
+          case "$status" in
+            404)
+              echo "No exact MCP Registry version exists yet; publication may proceed."
+              echo "existing=false" >> "$GITHUB_OUTPUT"
+              ;;
+            200)
+              RESPONSE="$response" node <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.RESPONSE, 'utf8'));
+          const server = payload.server || payload;
+          const official = payload._meta?.['io.modelcontextprotocol.registry/official'];
+          if (server.name !== process.env.MCP_NAME) throw new Error(`existing MCP name mismatch: ${server.name}`);
+          if (server.version !== process.env.VERSION) throw new Error(`existing MCP version ${server.version} does not match ${process.env.VERSION}`);
+          const listed = (server.packages || []).find((item) => item.registryType === 'npm' && item.identifier === '@m2msentinel/sdk');
+          if (!listed || listed.version !== process.env.VERSION) throw new Error('existing MCP package metadata is not an exact match');
+          if (!official || official.status !== 'active' || official.isLatest !== true) throw new Error('existing MCP Registry version is not the active latest official entry');
+          console.log(`Exact MCP Registry version ${server.version} already exists; skipping publication.`);
+          NODE
+              echo "existing=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Unexpected MCP Registry precheck status: $status"
+              cat "$response"
+              exit 1
+              ;;
+          esac
+
+      - name: Download and verify mcp-publisher v1.8.1
+        if: steps.precheck.outputs.existing != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/mcp-publisher_${PUBLISHER_VERSION}_linux_amd64.tar.gz"
+          extract="$RUNNER_TEMP/mcp-publisher-extract"
+          curl --fail --silent --show-error --location --retry 5 --retry-delay 2 "$PUBLISHER_URL" --output "$archive"
+          printf '%s  %s\n' "$PUBLISHER_SHA256" "$archive" | sha256sum --check --status
+          mkdir -p "$extract"
+          tar -xzf "$archive" -C "$extract"
+          publisher="$(find "$extract" -type f -name mcp-publisher -print -quit)"
+          if [[ -z "$publisher" ]]; then
+            echo "::error::The pinned mcp-publisher archive did not contain its binary."
+            exit 1
+          fi
+          install -m 0755 "$publisher" "$RUNNER_TEMP/mcp-publisher"
+          "$RUNNER_TEMP/mcp-publisher" --version
+          echo "MCP_PUBLISHER=$RUNNER_TEMP/mcp-publisher" >> "$GITHUB_ENV"
+
+      - name: Authenticate with the official MCP Registry using GitHub OIDC
+        if: steps.precheck.outputs.existing != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$MCP_PUBLISHER" login github-oidc
+
+      - name: Publish server.json to the official MCP Registry
+        if: steps.precheck.outputs.existing != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$MCP_PUBLISHER" publish server.json
+
+      - name: Confirm exact MCP Registry version after publication
+        if: steps.precheck.outputs.existing != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$RUNNER_TEMP/mcp-registry-published.json"
+          endpoint="$MCP_REGISTRY/v0.1/servers/$MCP_NAME_ENCODED/versions/$VERSION"
+          for attempt in 1 2 3 4 5 6; do
+            status="$(curl --silent --show-error --location --output "$response" --write-out '%{http_code}' "$endpoint")"
+            if [[ "$status" == 200 ]]; then
+              RESPONSE="$response" node <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.RESPONSE, 'utf8'));
+          const server = payload.server || payload;
+          const official = payload._meta?.['io.modelcontextprotocol.registry/official'];
+          if (server.name !== process.env.MCP_NAME || server.version !== process.env.VERSION) throw new Error('published MCP identity/version mismatch');
+          const listed = (server.packages || []).find((item) => item.registryType === 'npm' && item.identifier === '@m2msentinel/sdk');
+          if (!listed || listed.version !== process.env.VERSION) throw new Error('published MCP package version mismatch');
+          if (!official || official.status !== 'active' || official.isLatest !== true) throw new Error('published MCP Registry entry is not the active latest official entry');
+          NODE
+              exit 0
+            fi
+            if [[ "$attempt" -lt 6 ]]; then sleep 10; fi
+          done
+          echo "::error::The exact MCP Registry version was not observable after publication."
+          cat "$response"
+          exit 1

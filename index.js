@@ -176,6 +176,7 @@ function createViemSentinelInterceptor(apiKey, baseUrl, policy) {
 
 const { M2MSentinelActionProvider, m2mSentinelActionProvider } = require('./agent_adapter.js');
 const { X402SignerClient, x402SignerClient, parsePaymentHeader, parsePriceToUnits } = require('./x402_signer.js');
+const baseAccountPaymasterGuard = require('./base_account_paymaster_guard.js');
 
 module.exports = {
   M2MSentinelClient,
@@ -191,5 +192,6 @@ module.exports = {
   X402SignerClient,
   x402SignerClient,
   parsePaymentHeader,
-  parsePriceToUnits
+  parsePriceToUnits,
+  ...baseAccountPaymasterGuard
 };

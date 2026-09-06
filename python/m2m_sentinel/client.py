@@ -56,7 +56,7 @@ class M2MSentinelClient:
     def _request(self, method, path, data=None, api_key = None, payment_signature = None, operator_token=None):
         headers = {
             "Accept": "application/json",
-            "User-Agent": "M2MSentinel-Python/1.2.3",
+            "User-Agent": "M2MSentinel-Python/1.2.4",
         }
         if data is not None:
             headers["Content-Type"] = "application/json"
@@ -191,4 +191,3 @@ class AsyncM2MSentinelClient:
         """Run preflight_transaction without moving credentials into the URL."""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._client.preflight_transaction, transaction)
-

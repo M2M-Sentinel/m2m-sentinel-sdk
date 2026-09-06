@@ -1,6 +1,6 @@
 {
   "name": "@m2msentinel/sdk",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "mcpName": "io.github.M2M-Sentinel/m2m-sentinel-sdk",
   "publishConfig": {
     "access": "public"
@@ -8,6 +8,9 @@
   "description": "JavaScript client for M2M Sentinel Base bytecode capability, proxy and market observations",
   "main": "index.js",
   "types": "index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
   "bin": {
     "m2m-sentinel-mcp": "./mcp_server.js",
     "m2m-sentinel": "./mcp_server.js",
@@ -37,12 +40,16 @@
     "glama",
     "agentkit",
     "coinbase",
-    "smart-contract-audit"
+    "smart-contract-audit",
+    "paymaster",
+    "wallet-send-calls",
+    "sponsored-transaction"
   ],
   "author": "M2M Sentinel",
   "files": [
     "index.js",
     "index.d.ts",
+    "base_account_paymaster_guard.js",
     "m2m_sentinel_sdk.js",
     "agent_adapter.js",
     "x402_signer.js",
@@ -50,7 +57,11 @@
     "mcp_server.js",
     "smithery.yaml",
     "README.md",
-    "typescript/"
+    "typescript/index.ts",
+    "typescript/x402.ts",
+    "typescript/base_account_paymaster_guard.ts",
+    "typescript/package.json",
+    "typescript/package-lock.json",
+    "typescript/tsconfig.json"
   ]
 }
-

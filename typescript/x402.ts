@@ -318,7 +318,7 @@ export class X402SignerClient {
 
   async fetchWithAutoPayment(path: string, options: any = {}): Promise<any> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}/${path.replace(/^\/+/, '')}`;
-    const headers = { 'Accept': 'application/json', 'User-Agent': '@m2msentinel/sdk-ts/1.2.3', ...(options.headers || {}) };
+    const headers = { 'Accept': 'application/json', 'User-Agent': '@m2msentinel/sdk-ts/1.2.4', ...(options.headers || {}) };
 
     let res = await fetch(url, { method: options.method || 'GET', headers, body: options.body });
     if (res.status !== 402) {

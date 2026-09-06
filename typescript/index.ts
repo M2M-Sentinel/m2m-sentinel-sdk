@@ -226,3 +226,5 @@ export {
   X402SignerClient,
   x402SignerClient
 } from './x402';
+
+export * from './base_account_paymaster_guard';

@@ -81,6 +81,20 @@ main().catch(console.error);
 
 ---
 
+## 🛡️ Base Account `wallet_sendCalls` Guard
+
+The public SDK includes `guardWalletSendCalls`, a customer-side execution-identity
+boundary for Base Account / EIP-5792 batches. It preflights the anchor call and
+evaluates its caller policy before scheduling any remaining call, then pins
+remaining calls to the first trusted block identity in waves of at most four.
+Each settled wave is validated and policy-checked in ascending request-index
+order before a later wave starts; a failure or rejection stops later scheduling.
+The original detached request is forwarded only after all checks pass. It does
+not sign, broadcast, custody funds, infer inner UserOperation semantics, or
+make a safety claim. See `examples/base_account_paymaster_guard.js` for a no-network fixture.
+
+---
+
 ## 🐍 4. Python Client
 
 ```bash

@@ -1,84 +1,152 @@
-# M2M Sentinel Python SDK
+# M2M Sentinel SDK & MCP Server
 
-Python client for Base EVM bytecode capability, common-proxy resolution, and sourced market observations. Factual static capability observation — not a formal reachability audit, safety guarantee, or transaction advice.
+Official multi-language client library, **Model Context Protocol (MCP) server**, and **Coinbase AgentKit ActionProvider** for M2M Sentinel — deterministic EVM bytecode capability observations and common-proxy resolution for autonomous applications operating on Base. Callers own transaction policy.
 
-## Installation
+[![npm version](https://img.shields.io/npm/v/m2m-sentinel-sdk.svg)](https://www.npmjs.com/package/m2m-sentinel-sdk)
+[![PyPI version](https://img.shields.io/pypi/v/m2m-sentinel.svg)](https://pypi.org/project/m2m-sentinel/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Smithery](https://smithery.ai/badge/m2m-sentinel-sdk)](https://smithery.ai/server/m2m-sentinel-sdk)
 
-### From PyPI (Recommended)
+---
 
+## ⚡ 1. Model Context Protocol (MCP) Server
+
+Connect M2M Sentinel directly to **Claude Desktop**, **Cursor**, **Windsurf**, or any MCP-compliant LLM agent.
+
+### Option A: 1-Click via Smithery
 ```bash
-pip install m2m-sentinel==1.2.3
+npx -y @smithery/cli mcp add M2M-Sentinel/m2m-sentinel-sdk --client claude
 ```
 
-### From Source
-
-```bash
-git clone https://github.com/M2M-Sentinel/m2m-sentinel-sdk.git
-cd m2m-sentinel-sdk/python
-pip install .
+### Option B: Local Stdio (`claude_desktop_config.json`)
+```json
+{
+  "mcpServers": {
+    "m2m-sentinel": {
+      "command": "npx",
+      "args": ["-y", "m2m-sentinel-sdk"],
+      "env": {
+        "M2M_SENTINEL_API_KEY": ""
+      }
+    }
+  }
+}
 ```
 
-## Quickstart Example
+### Option C: Remote Streamable HTTP
+* **Current MCP endpoint**: `https://api.m2msentinel.com/mcp`
+* **Legacy HTTP+SSE compatibility**: `https://api.m2msentinel.com/sse` with messages at `https://api.m2msentinel.com/messages`
+
+---
+
+## 🤖 2. Coinbase AgentKit Integration
+
+```typescript
+import { AgentKit } from "@coinbase/agentkit";
+import { m2mSentinelActionProvider } from "m2m-sentinel-sdk";
+
+const agentKit = await AgentKit.from({
+  walletProvider,
+  actionProviders: [
+    m2mSentinelActionProvider({
+      apiKey: process.env.M2M_SENTINEL_API_KEY
+    })
+  ]
+});
+```
+
+---
+
+## 📦 3. JavaScript / TypeScript Client
+
+```bash
+npm install m2m-sentinel-sdk
+```
+
+```javascript
+const { M2MSentinelClient } = require('m2m-sentinel-sdk');
+
+const client = new M2MSentinelClient();
+
+async function main() {
+  const audit = await client.auditContract('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+  console.log('Proxy Detected:', audit.audit.proxyResolution.isProxy);
+  console.log('Proxy Target:', audit.audit.proxyResolution.targetAddress);
+  console.log('Capabilities:', audit.audit.verdict.executableCapabilities);
+  console.log('Evidence:', audit.audit.dissection.capabilities);
+}
+
+main().catch(console.error);
+```
+
+---
+
+## 🛡️ Base Account `wallet_sendCalls` Guard
+
+The public SDK includes `guardWalletSendCalls`, a customer-side execution-identity
+boundary for Base Account / EIP-5792 batches. It preflights the anchor call and
+evaluates its caller policy before scheduling any remaining call, then pins
+remaining calls to the first trusted block identity in waves of at most four.
+Each settled wave is validated and policy-checked in ascending request-index
+order before a later wave starts; a failure or rejection stops later scheduling.
+The original detached request is forwarded only after all checks pass. It does
+not sign, broadcast, custody funds, infer inner UserOperation semantics, or
+make a safety claim. See `examples/base_account_paymaster_guard.js` for a no-network fixture.
+
+---
+
+## 🐍 4. Python Client
+
+```bash
+pip install m2m-sentinel
+```
 
 ```python
-from m2m_sentinel import AsyncM2MSentinelClient, M2MSentinelClient, X402SignerClient
+from m2m_sentinel import M2MSentinelClient
 
-# 1. Initialize client (defaults to https://api.m2msentinel.com)
-client = M2MSentinelClient(api_key="sk_starter_...")
-
-# Observe static capabilities for a Base smart contract
-response = client.audit_contract("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
-audit = response["audit"]
-print("Capability Rating:", audit["capabilityRating"])
-print("Proxy Resolution:", audit["proxyResolution"])
-
-# Observe one exact transaction at a pinned Base block before applying
-# caller-owned signing policy. This is evidence, not a safety decision.
-transaction = {
-    "chainId": 8453,
-    "to": "0x1111111111111111111111111111111111111111",
-    "data": "0x40c10f19",
-}
-preflight = client.preflight_transaction(transaction)
-print("Executing target:", preflight.get("resolvedExecutionTarget"))
-print("Observation block:", preflight["observationBlock"])
-
-# The async facade uses the same JSON body and header-only credentials.
-# asyncio.run(AsyncM2MSentinelClient(api_key="sk_starter_...").preflight_transaction(transaction))
-
-# 2. Autonomous Headless x402 Micropayments (EIP-3009 Local Signing)
-signer = X402SignerClient(private_key="0x...")
-paid_res = signer.fetch_with_auto_payment("/v1/audit/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
-print("Paid analysis:", paid_res["data"])
-
-# Get capability index (fewer observed risky static patterns = higher score)
-index = client.get_capability_score("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
-print("Capability Score:", index["capabilityScore"], index["scoreMeaning"])
-
-# Schematic paid-onboarding example. Supply these values from your private
-# server/wallet flow; never hard-code credentials.
-wallet_address = "0xYOUR_SUBSCRIBER_WALLET"
-existing_paid_key = "READ_FROM_YOUR_SECRET_STORE"
-original_payment_hash = "0xYOUR_ORIGINAL_PAYMENT_HASH"
-intent = client.create_subscription_intent(
-    "GROWTH", wallet_address, duration_days=90,
-    renew_existing_key=True, api_key=existing_paid_key
-)
-recovery = client.create_recovery_challenge(wallet_address, tx_hash=original_payment_hash)
+client = M2MSentinelClient()
+audit = client.audit_contract("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
+print("Proxy detected:", audit["audit"]["proxyResolution"]["isProxy"])
+print("Proxy target:", audit["audit"]["proxyResolution"].get("targetAddress"))
+print("Capabilities:", audit["audit"]["verdict"]["executableCapabilities"])
+print("Evidence:", audit["audit"]["dissection"]["capabilities"])
 ```
 
-## Method Reference
+---
 
-| Method | Description |
-| :--- | :--- |
-| `audit_contract(address)` | Returns static opcode capability flags, proxy resolution (EIP-1967/UUPS), and bytecode provenance on Base. |
-| `preflight_transaction(transaction)` | Resolves the supplied selector's executing target at one pinned Base block and returns evidence or an explicit incomplete state; it does not make a safety decision. |
-| `AsyncM2MSentinelClient.preflight_transaction(transaction)` | Async facade for the same header-authenticated transaction-specific observation. |
-| `get_capability_score(address)` | Evaluates observed static capability patterns. (Retains `/v1/security/score/:address` for backwards compatibility). |
-| `get_gas_metrics()` | Fetches real-time Base network gas suggestions and congestion telemetry. |
-| `get_token_price(symbol)` | Sourced Base DEX price observation for allowlisted assets (USDC, WETH, etc.). |
-| `get_dex_liquidity(address)` | Sourced DEX reserve and liquidity data on Base. |
+## Transaction-specific preflight example
 
-## Important Notice
+The public repository includes a standalone, mock-only transaction boundary
+example at [`examples/transaction_preflight.js`](examples/transaction_preflight.js).
+From this repository root, run:
 
-The route behind `get_capability_score` retains `/v1/security/score/:address` for legacy compatibility, but its value means only that fewer selected static patterns were observed. Factual static capability observation — not a formal reachability audit, safety guarantee, or transaction advice.
+```bash
+node examples/transaction_preflight.js
+```
+
+It observes one caller-supplied Base transaction, passes the observation to a
+caller-owned policy, and reaches only a mock signing/send callback. It refuses
+to continue on unverified evidence, unresolved execution, an observation
+mismatch, or a missing Diamond selector mapping. It never signs or sends a
+transaction; optional live mode uses only a caller-supplied API-key header and
+remains the caller's responsibility.
+
+---
+
+## 💳 5. Autonomous x402 Micropayments (Headless M2M)
+
+```typescript
+import { x402SignerClient } from "m2m-sentinel-sdk";
+
+const client = new x402SignerClient({
+  walletSigner: myAgentWallet,
+  baseUrl: "https://api.m2msentinel.com"
+});
+
+const result = await client.request("/v1/audit/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+```
+
+---
+
+## 📜 License
+MIT License. Copyright (c) 2026 M2M Sentinel.
