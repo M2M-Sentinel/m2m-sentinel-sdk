@@ -8,7 +8,7 @@ long_description = readme_path.read_text(encoding="utf-8")
 
 setup_kwargs = dict(
     name="m2m-sentinel",
-    version="1.2.4",
+    version="1.2.5",
     packages=find_packages(),
     description="Python client for M2M Sentinel Base bytecode capability, proxy and market observations",
     long_description=long_description,

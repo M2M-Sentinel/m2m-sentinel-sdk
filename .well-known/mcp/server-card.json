@@ -2,7 +2,7 @@
   "$schema": "https://modelcontextprotocol.io/schema/server-card.json",
   "serverInfo": {
     "name": "m2m-sentinel",
-    "version": "1.2.4",
+    "version": "1.2.5",
     "description": "Base bytecode capability observations, proxy resolution, gas, DEX, and transfer telemetry."
   },
   "homepage": "https://m2msentinel.com",

@@ -1,6 +1,6 @@
 {
   "name": "@m2msentinel/sdk",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "mcpName": "io.github.M2M-Sentinel/m2m-sentinel-sdk",
   "publishConfig": {
     "access": "public"

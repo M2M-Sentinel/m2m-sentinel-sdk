@@ -225,7 +225,7 @@ class X402SignerClient:
 
     def fetch_with_auto_payment(self, path, method="GET", headers=None, body=None):
         url = path if path.startswith("http") else f"{self.base_url}/{path.lstrip('/')}"
-        req_headers = {"Accept": "application/json", "User-Agent": "M2M-Sentinel-Python-Signer/1.2.4"}
+        req_headers = {"Accept": "application/json", "User-Agent": "M2M-Sentinel-Python-Signer/1.2.5"}
         if headers:
             req_headers.update(headers)
 
