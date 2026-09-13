@@ -69,7 +69,7 @@ const m2mSentinelPlugin = {
     },
     {
       name: 'GET_GAS_FEES',
-      description: 'Fetches live Base gas fees.',
+      description: 'Fetches current Base gas-price telemetry with upstream provenance.',
       handler: async (runtime) => {
         try { return { text: JSON.stringify(await clientFor(runtime).getGasFees()) }; }
         catch (err) { return { text: errorText(err) }; }

@@ -48,7 +48,7 @@ class M2MSentinelLangChainTools {
       },
       {
         name: 'm2m_get_gas_metrics',
-        description: 'Fetch live Base network gas metrics and execution recommendations.',
+        description: 'Fetch current Base gas price in wei/gwei with RPC provenance. Read-only telemetry; does not authorize or submit transactions.',
         schema: {
           type: 'object',
           properties: {}
@@ -64,7 +64,7 @@ class M2MSentinelLangChainTools {
       },
       {
         name: 'm2m_get_token_price',
-        description: 'Fetch verified Base DEX token price for allowlisted assets (e.g. USDC, WETH).',
+        description: 'Fetch sourced Base DEX spot price for one allowlisted token symbol (e.g. USDC, WETH), with pool provenance and no historical price series.',
         schema: {
           type: 'object',
           properties: {
