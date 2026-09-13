@@ -15,13 +15,14 @@ const SERVER_INSTRUCTIONS =
   '• Canonical Tools: The six m2m_* tool names (m2m_audit_contract, m2m_get_gas_metrics, m2m_get_token_price, m2m_get_dex_liquidity, m2m_get_whale_signals, m2m_get_service_status) are canonical.\n' +
   '• Backwards Compatibility: Legacy tool names (audit_contract, get_capability_score, get_gas_fees, get_dex_metrics, get_token_price, get_whale_signals) are not advertised in tools/list but remain compatibility-callable.\n' +
   '• Upstream Behavior: m2m_get_dex_liquidity returns aggregate tracked pool liquidity metrics without pair query filtering; m2m_get_whale_signals returns recent high-value transfer events (up to 50) without query limit filtering.\n' +
+  '• Access and Errors: The stdio wrapper reads M2M_SENTINEL_API_KEY when set. Protected upstream calls may return structured 401, 402, 429, or 503 responses; x402 payment metadata is surfaced, but this wrapper does not sign payments.\n' +
   '• Observational Scope: All operations are factual, read-only observations. The server does not custody private keys, sign transactions, or execute on-chain state changes.\n' +
   '• Limitation: Outputs reflect observed bytecode patterns and telemetry and are not safety, economic, or exploitability guarantees.';
 
 const TOOLS = [
   {
     name: 'm2m_audit_contract',
-    description: 'Inspect static bytecode capabilities (e.g. mint, pause, blacklist, upgradeability slots), common proxy target resolution, and coverage index for a single Base contract address. Factual capability observation only, not a safety or exploitability guarantee. Distinguishable from m2m_get_service_status (infrastructure health) and legacy score-only endpoints.',
+    description: 'Inspect static bytecode capabilities (e.g. mint, pause, freeze, upgradeability slots), common proxy target resolution, and coverage index for a single Base contract address. Factual capability observation only, not a safety or exploitability guarantee. Distinguishable from m2m_get_service_status (infrastructure status) and legacy score-only endpoints.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -41,7 +42,7 @@ const TOOLS = [
   },
   {
     name: 'm2m_get_gas_metrics',
-    description: 'Fetch Base network gas fee metrics (standard, fast, instant in gwei) and transaction execution recommendations. Sourced for Base Mainnet execution timing; does not inspect contract code or fetch token/DEX pricing.',
+    description: 'Fetch current Base gas price in wei/gwei with RPC provenance for the upstream observation. Read-only telemetry; does not inspect contract code, return token/DEX pricing, or authorize or submit transactions.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -49,13 +50,13 @@ const TOOLS = [
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
-      idempotentHint: false,
+      idempotentHint: true,
       openWorldHint: true
     }
   },
   {
     name: 'm2m_get_token_price',
-    description: 'Fetch Base DEX liquidity-weighted spot price in USD, contract address, decimals, and pool source for a single allowlisted token symbol (e.g. USDC, WETH, AERO). Does not return historical price series; contrast with m2m_get_dex_liquidity which returns pool reserve depth rather than asset spot prices.',
+    description: 'Fetch the median Base DEX spot price in USD across up to five deepest indexed pools, with contract address, decimals, and pool provenance for one allowlisted token symbol (e.g. USDC, WETH, AERO). Does not return historical price series; contrast with m2m_get_dex_liquidity, which returns aggregate pool reserve depth rather than an asset price.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -69,13 +70,13 @@ const TOOLS = [
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
-      idempotentHint: false,
+      idempotentHint: true,
       openWorldHint: true
     }
   },
   {
     name: 'm2m_get_dex_liquidity',
-    description: 'Fetch real-time aggregate pool reserve, depth, and volume metrics across tracked Base DEX liquidity pools. Evaluates overall tracked pool liquidity health (aggregate tracked-pool metrics; does not filter by individual trading pair). Contrast with m2m_get_token_price which observes token spot prices.',
+    description: 'Fetch aggregate pool reserve, depth, and volume metrics across tracked Base DEX liquidity pools. Reports tracked-pool metrics only and does not filter by individual trading pair; contrast with m2m_get_token_price, which observes token spot prices.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -83,13 +84,13 @@ const TOOLS = [
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
-      idempotentHint: false,
+      idempotentHint: true,
       openWorldHint: true
     }
   },
   {
     name: 'm2m_get_whale_signals',
-    description: 'Fetch tracked recent high-value ERC-20 transfer and concentration signals on Base (returns up to 50 recent signals) with transaction hash, transfer addresses, and value provenance. Observes large on-chain transfer events without query parameter limits; does not inspect contract bytecode or query DEX pricing.',
+    description: 'Fetch up to 50 tracked recent high-value ERC-20 transfer signals on Base with transaction hashes, token/sender/receiver addresses, amounts, and valuation provenance. Observes large on-chain transfer events without query parameter limits; does not inspect contract bytecode or query DEX pricing.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -97,13 +98,13 @@ const TOOLS = [
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
-      idempotentHint: false,
+      idempotentHint: true,
       openWorldHint: true
     }
   },
   {
     name: 'm2m_get_service_status',
-    description: 'Fetch operational status, upstream Base RPC quorum health, indexer state, and persistence availability for M2M Sentinel infrastructure. Does not return blockchain or market telemetry.',
+    description: 'Fetch operational status, upstream Base RPC quorum status, and persistence availability for M2M Sentinel infrastructure. Does not return blockchain or market telemetry.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -111,7 +112,7 @@ const TOOLS = [
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
-      idempotentHint: false,
+      idempotentHint: true,
       openWorldHint: true
     }
   }
@@ -323,8 +324,8 @@ USAGE:
 
 COMMANDS:
   audit <address>        Disassemble bytecode, detect capabilities & resolve proxies
-  gas                    Fetch real-time Base Mainnet gas metrics & advice
-  price <symbol>         Fetch DEX liquidity-weighted token price (USDC, WETH, AERO)
+  gas                    Fetch current Base Mainnet gas-price telemetry
+  price <symbol>         Fetch median Base DEX token price from deepest pools (USDC, WETH, AERO)
   dex                    Fetch aggregate tracked Base liquidity pool metrics
   whales                 Fetch large ERC-20 transfer signals on Base (up to 50)
   status                 Check live API, RPC quorum, and persistence health
@@ -492,13 +493,16 @@ async function runCli(args) {
 
     } else if (commandName === 'gas' || commandName === 'fees') {
       console.log('================================================================');
-      console.log('⛽ M2M SENTINEL — BASE GAS METRICS');
+      console.log('⛽ M2M SENTINEL — BASE GAS PRICE TELEMETRY');
       console.log(`Network: Base Mainnet (8453) | Sourced Latency: ${res.latencyMs}ms`);
       console.log('================================================================');
-      console.log(`• Standard Gas Price: ${data.standard || data.gasPriceGwei || '0.005'} gwei`);
-      if (data.fast) console.log(`• Fast Gas Price:     ${data.fast} gwei`);
-      if (data.instant) console.log(`• Instant Gas Price:  ${data.instant} gwei`);
-      if (data.recommendation) console.log(`• Execution Advice:   ${data.recommendation}`);
+      const gasPrice = data && data.gasPrice && typeof data.gasPrice === 'object' ? data.gasPrice : data;
+      const gwei = gasPrice && gasPrice.gwei !== undefined
+        ? gasPrice.gwei
+        : (data && data.gasPriceGwei !== undefined ? data.gasPriceGwei : (data && data.standard));
+      if (gwei !== undefined) console.log(`• Gas Price:          ${gwei} gwei`);
+      if (gasPrice && gasPrice.wei !== undefined) console.log(`• Gas Price:          ${gasPrice.wei} wei`);
+      if (data && data.provenance) console.log(`• RPC Provenance:     ${JSON.stringify(data.provenance)}`);
       console.log('================================================================\n');
 
     } else if (commandName === 'price') {

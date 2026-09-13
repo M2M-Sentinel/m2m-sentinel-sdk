@@ -161,18 +161,16 @@ class M2MSentinelActionProvider {
     return JSON.stringify(res.body);
   }
 
-  async getDexLiquidity(args = {}) {
-    const pair = String(args.pair || 'WETH-USDC').trim();
-    const res = await this._queryApi(`/v1/dex/metrics?pair=${encodeURIComponent(pair)}`);
+  async getDexLiquidity(_args = {}) {
+    const res = await this._queryApi('/v1/dex/metrics');
     if (!res.ok) {
       return JSON.stringify({ status: 'ERROR', statusCode: res.statusCode, message: 'Failed to retrieve DEX liquidity' });
     }
     return JSON.stringify(res.body);
   }
 
-  async getWhaleSignals(args = {}) {
-    const limit = Number(args.limit || 10);
-    const res = await this._queryApi(`/v1/whales/signals?limit=${encodeURIComponent(limit)}`);
+  async getWhaleSignals(_args = {}) {
+    const res = await this._queryApi('/v1/whales/signals');
     if (!res.ok) {
       return JSON.stringify({ status: 'ERROR', statusCode: res.statusCode, message: 'Failed to retrieve whale signals' });
     }
@@ -198,7 +196,7 @@ class M2MSentinelActionProvider {
       },
       {
         name: 'm2m_get_gas_metrics',
-        description: 'Get real-time Base network gas execution metrics and recommendations before submitting on-chain transactions.',
+        description: 'Fetch current Base gas price in wei/gwei with RPC provenance. Read-only telemetry; does not authorize or submit transactions.',
         schema: {
           type: 'object',
           properties: {}
@@ -207,7 +205,7 @@ class M2MSentinelActionProvider {
       },
       {
         name: 'm2m_get_token_price',
-        description: 'Observe real-time Base DEX token price for slippage check and valuation.',
+        description: 'Fetch the median Base DEX spot price in USD across up to five deepest indexed pools for one allowlisted token symbol. No historical price series.',
         schema: {
           type: 'object',
           properties: {
@@ -222,29 +220,19 @@ class M2MSentinelActionProvider {
       },
       {
         name: 'm2m_get_dex_liquidity',
-        description: 'Get tracked Base DEX pool reserve and liquidity metrics.',
+        description: 'Fetch aggregate reserve, depth, and volume metrics across tracked Base DEX liquidity pools; no individual pair filtering.',
         schema: {
           type: 'object',
-          properties: {
-            pair: {
-              type: 'string',
-              description: 'DEX pair identifier (e.g. WETH-USDC)'
-            }
-          }
+          properties: {}
         },
         invoke: (args) => this.getDexLiquidity(args)
       },
       {
         name: 'm2m_get_whale_signals',
-        description: 'Get tracked Base whale transfer and concentration signals.',
+        description: 'Fetch up to 50 tracked recent high-value ERC-20 transfer signals on Base; no query parameter limit filtering.',
         schema: {
           type: 'object',
-          properties: {
-            limit: {
-              type: 'number',
-              description: 'Maximum signals to retrieve (1-50)'
-            }
-          }
+          properties: {}
         },
         invoke: (args) => this.getWhaleSignals(args)
       },

@@ -1,6 +1,6 @@
 ---
 name: m2m-sentinel
-description: Deterministic EVM bytecode capability observations, EIP-1967 proxy resolution, gas recommendations, and sourced telemetry for autonomous applications on Base (Chain ID 8453).
+description: Deterministic EVM bytecode capability observations, EIP-1967 proxy resolution, current gas-price telemetry, and sourced market observations for autonomous applications on Base (Chain ID 8453).
 ---
 
 # M2M Sentinel Agent Skill
@@ -10,11 +10,13 @@ Use this skill whenever an autonomous agent or application needs to inspect smar
 ## 1. Quick Capabilities Overview
 
 - **`m2m_audit_contract(address)`**: Disassembles EVM bytecode to identify capability opcodes (`DELEGATECALL`, `SELFDESTRUCT`, dynamic jumps) and resolves EIP-1967 transparent/beacon proxies.
-- **`m2m_get_gas_metrics()`**: Real-time Base gas execution telemetry and recommendations.
+- **`m2m_get_gas_metrics()`**: Current Base gas price and RPC provenance telemetry.
 - **`m2m_get_token_price(symbol)`**: Sourced Base DEX price observation for allowlisted assets (e.g. USDC, WETH).
-- **`m2m_get_dex_liquidity()`**: Real-time aggregate Base DEX pool reserve depth and volume telemetry.
-- **`m2m_get_whale_signals()`**: Tracked recent high-value ERC-20 transfer and concentration signals on Base (up to 50 events).
+- **`m2m_get_dex_liquidity()`**: Aggregate tracked Base DEX pool reserve depth and volume telemetry; it does not filter by trading pair.
+- **`m2m_get_whale_signals()`**: Tracked recent high-value ERC-20 transfer signals on Base (up to 50 events).
 - **`m2m_get_service_status()`**: Operational availability and health status of M2M Sentinel upstream Base RPC quorum and persistence rails.
+
+The stdio MCP wrapper reads `M2M_SENTINEL_API_KEY` when set. Protected upstream calls may return structured HTTP 401, 402, 429, or 503 responses; x402 payment metadata is surfaced, but the wrapper does not sign payments.
 
 ---
 

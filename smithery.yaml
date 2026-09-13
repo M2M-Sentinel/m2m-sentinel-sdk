@@ -13,7 +13,7 @@ startCommand:
       M2M_SENTINEL_API_KEY:
         type: string
         title: M2M Sentinel API Key
-        description: Optional API key for higher rate limits. Public free tier works without key.
+        description: Optional API key for prepaid access. Protected calls may return structured 401, 402, 429, or 503 responses without authorized access.
         default: ""
 
 configSchema:
@@ -22,6 +22,6 @@ configSchema:
     M2M_SENTINEL_API_KEY:
       type: string
       title: M2M Sentinel API Key
-      description: Optional API key for higher rate limits. Public free tier works without key.
+      description: Optional API key for prepaid access. Protected calls may return structured 401, 402, 429, or 503 responses without authorized access.
       default: ""
 

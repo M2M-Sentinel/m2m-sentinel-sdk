@@ -200,6 +200,9 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
       assert(res.instructions.includes('read-only'), 'Must state operations are factual/read-only');
       assert(res.instructions.includes('not safety'), 'Must state results are not safety or exploitability guarantees');
       assert(res.instructions.includes('exploitability guarantees'), 'Must state results are not safety or exploitability guarantees');
+      assert(res.instructions.includes('M2M_SENTINEL_API_KEY'), 'Must document API-key configuration');
+      assert(res.instructions.includes('401, 402, 429, or 503'), 'Must document protected-call error behavior');
+      assert(res.instructions.includes('does not sign payments'), 'Must disclose that the stdio wrapper does not sign x402 payments');
 
       // Verify no unproven claims
       assert(!res.instructions.includes('higher rate limits'), 'Must not claim unproven rate limit tiers');
@@ -217,12 +220,10 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
         assert(typeof tool.annotations.idempotentHint === 'boolean', `${tool.name} must define idempotentHint`);
       }
 
-      // Specific idempotency expectations
-      const auditTool = TOOLS.find((t) => t.name === 'm2m_audit_contract');
-      assert.strictEqual(auditTool.annotations.idempotentHint, true, 'Audit contract tool is idempotent');
-
-      const gasTool = TOOLS.find((t) => t.name === 'm2m_get_gas_metrics');
-      assert.strictEqual(gasTool.annotations.idempotentHint, false, 'Gas metrics tool is live telemetry');
+      // All six operations are read-only queries with no repeated-call side effect.
+      for (const tool of TOOLS) {
+        assert.strictEqual(tool.annotations.idempotentHint, true, `${tool.name} is idempotent`);
+      }
     });
 
     it('retains valid input schemas and does not invent output schemas', () => {
@@ -702,18 +703,8 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
         }
       }
 
-      // 3. If Ajv is present on the machine, run full formal compilation & validation
-      let ajv;
-      try {
-        const Ajv = require('C:/Users/bilou/.codex/worktrees/buyer-pipeline-2026-09-10/node_modules/ajv');
-        ajv = new Ajv({ allErrors: true, strict: false });
-      } catch (_) {}
-
-      if (ajv) {
-        const validate = ajv.compile(schema);
-        const valid = validate(serverJson);
-        assert(valid, `Ajv schema validation failed: ${JSON.stringify(validate.errors)}`);
-      }
+      // The structural checks above intentionally use only repository-local data
+      // so this clean-room test has no dependency on another checkout or cache.
     });
   });
 });
