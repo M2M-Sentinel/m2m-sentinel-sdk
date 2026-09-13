@@ -12,9 +12,9 @@ Use this skill whenever an autonomous agent or application needs to inspect smar
 - **`m2m_audit_contract(address)`**: Disassembles EVM bytecode to identify capability opcodes (`DELEGATECALL`, `SELFDESTRUCT`, dynamic jumps) and resolves EIP-1967 transparent/beacon proxies.
 - **`m2m_get_gas_metrics()`**: Real-time Base gas execution telemetry and recommendations.
 - **`m2m_get_token_price(symbol)`**: Sourced Base DEX price observation for allowlisted assets (e.g. USDC, WETH).
-- **`m2m_get_dex_liquidity(pair)`**: DEX pool reserve depth telemetry.
-- **`m2m_get_whale_signals(limit)`**: On-chain transfer signals for Base assets.
-- **`m2m_get_service_status()`**: Real-time operational availability and health status of M2M Sentinel upstream Base RPC quorum and persistence rails.
+- **`m2m_get_dex_liquidity()`**: Real-time aggregate Base DEX pool reserve depth and volume telemetry.
+- **`m2m_get_whale_signals()`**: Tracked recent high-value ERC-20 transfer and concentration signals on Base (up to 50 events).
+- **`m2m_get_service_status()`**: Operational availability and health status of M2M Sentinel upstream Base RPC quorum and persistence rails.
 
 ---
 

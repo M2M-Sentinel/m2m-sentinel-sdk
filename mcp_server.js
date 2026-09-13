@@ -11,19 +11,12 @@ const TIMEOUT_MS = Number(process.env.M2M_SENTINEL_TIMEOUT_MS || 30000);
 const VERSION = '1.2.5';
 
 const SERVER_INSTRUCTIONS =
-  'M2M Sentinel MCP Server provides factual EVM bytecode capability analysis and market telemetry strictly for Base Mainnet (chainId 8453).\n\n' +
-  'Scope and Operational Boundaries:\n' +
-  '- Network Scope: Base Mainnet (chainId 8453) only.\n' +
-  '- Read-Only & Non-Signing Boundary: All tools perform non-destructive, observational queries. The server never custodies private keys, signs transactions, or executes on-chain state changes. Callers own all transaction signing and execution policy.\n' +
-  '- Factual Evidence Limitation: Tool outputs represent factual static bytecode patterns and on-chain telemetry. They are NOT a safety guarantee, economic security audit, endorsement, or proof of absence of vulnerabilities.\n' +
-  '- Authentication & Upstream Errors: Public endpoints operate without credentials. Optional M2M_SENTINEL_API_KEY provides higher rate limits. Paid or restricted routes may return HTTP 401/402 (with x402 payment headers) or 429/503 upstream errors, which the server surfaces with isError: true and HTTP/x402 metadata in _meta.\n\n' +
-  'Tool Selection Guide:\n' +
-  '1. m2m_audit_contract: Use when analyzing a Base smart contract address (0x...) for static bytecode capabilities (mint, pause, blacklist, proxy target resolution, capability coverage index). Does not evaluate runtime exploitability.\n' +
-  '2. m2m_get_gas_metrics: Use to fetch current Base network gas fee metrics (standard, fast, instant in gwei) and transaction timing recommendations.\n' +
-  '3. m2m_get_token_price: Use to fetch spot price and pool provenance for allowlisted tokens on Base (e.g. USDC, WETH, AERO). Requires token symbol; does not return historical charts.\n' +
-  '4. m2m_get_dex_liquidity: Use to inspect liquidity depth and reserve metrics for Base DEX pools (optionally filtered by pair, e.g. WETH-USDC).\n' +
-  '5. m2m_get_whale_signals: Use to observe recent high-value transfer events and concentration signals on Base (optional limit up to 50).\n' +
-  '6. m2m_get_service_status: Use to inspect the operational availability and health of M2M Sentinel upstream RPC nodes, indexers, and persistence rails.';
+  'M2M Sentinel MCP server provides factual, read-only observations on Base Mainnet (chainId 8453).\n\n' +
+  '• Canonical Tools: The six m2m_* tool names (m2m_audit_contract, m2m_get_gas_metrics, m2m_get_token_price, m2m_get_dex_liquidity, m2m_get_whale_signals, m2m_get_service_status) are canonical.\n' +
+  '• Backwards Compatibility: Legacy tool names (audit_contract, get_capability_score, get_gas_fees, get_dex_metrics, get_token_price, get_whale_signals) are not advertised in tools/list but remain compatibility-callable.\n' +
+  '• Upstream Behavior: m2m_get_dex_liquidity returns aggregate tracked pool liquidity metrics without pair query filtering; m2m_get_whale_signals returns recent high-value transfer events (up to 50) without query limit filtering.\n' +
+  '• Observational Scope: All operations are factual, read-only observations. The server does not custody private keys, sign transactions, or execute on-chain state changes.\n' +
+  '• Limitation: Outputs reflect observed bytecode patterns and telemetry and are not safety, economic, or exploitability guarantees.';
 
 const TOOLS = [
   {
@@ -48,7 +41,7 @@ const TOOLS = [
   },
   {
     name: 'm2m_get_gas_metrics',
-    description: 'Fetch real-time Base network gas fee metrics (standard, fast, instant in gwei) and transaction execution recommendations. Sourced for Base Mainnet execution timing; does not inspect contract code or fetch token/DEX pricing.',
+    description: 'Fetch Base network gas fee metrics (standard, fast, instant in gwei) and transaction execution recommendations. Sourced for Base Mainnet execution timing; does not inspect contract code or fetch token/DEX pricing.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -62,7 +55,7 @@ const TOOLS = [
   },
   {
     name: 'm2m_get_token_price',
-    description: 'Fetch real-time Base DEX liquidity-weighted spot price in USD, contract address, decimals, and pool source for a single allowlisted token symbol (e.g. USDC, WETH, AERO). Does not return historical price series; contrast with m2m_get_dex_liquidity which returns pool reserve depth rather than asset spot prices.',
+    description: 'Fetch Base DEX liquidity-weighted spot price in USD, contract address, decimals, and pool source for a single allowlisted token symbol (e.g. USDC, WETH, AERO). Does not return historical price series; contrast with m2m_get_dex_liquidity which returns pool reserve depth rather than asset spot prices.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -82,15 +75,10 @@ const TOOLS = [
   },
   {
     name: 'm2m_get_dex_liquidity',
-    description: 'Fetch real-time pool reserve, depth, and volume metrics for tracked Base DEX liquidity pools, with optional single-pair filtering (e.g. WETH-USDC). Evaluates pool liquidity health; contrast with m2m_get_token_price which observes token spot prices.',
+    description: 'Fetch real-time aggregate pool reserve, depth, and volume metrics across tracked Base DEX liquidity pools. Evaluates overall tracked pool liquidity health (aggregate tracked-pool metrics; does not filter by individual trading pair). Contrast with m2m_get_token_price which observes token spot prices.',
     inputSchema: {
       type: 'object',
-      properties: {
-        pair: {
-          type: 'string',
-          description: "Optional Base DEX trading pair identifier (e.g. 'WETH-USDC'). If omitted, returns primary tracked Base pool reserves."
-        }
-      }
+      properties: {}
     },
     annotations: {
       readOnlyHint: true,
@@ -101,15 +89,10 @@ const TOOLS = [
   },
   {
     name: 'm2m_get_whale_signals',
-    description: 'Fetch tracked recent high-value ERC-20 transfer and concentration signals on Base with transaction hash, transfer addresses, and value provenance. Observes large on-chain transfer events; does not inspect contract bytecode or query DEX pricing.',
+    description: 'Fetch tracked recent high-value ERC-20 transfer and concentration signals on Base (returns up to 50 recent signals) with transaction hash, transfer addresses, and value provenance. Observes large on-chain transfer events without query parameter limits; does not inspect contract bytecode or query DEX pricing.',
     inputSchema: {
       type: 'object',
-      properties: {
-        limit: {
-          type: 'number',
-          description: 'Optional maximum number of recent whale transfer signals to return (integer between 1 and 50, default 10).'
-        }
-      }
+      properties: {}
     },
     annotations: {
       readOnlyHint: true,
@@ -120,7 +103,7 @@ const TOOLS = [
   },
   {
     name: 'm2m_get_service_status',
-    description: 'Fetch real-time operational status, upstream Base RPC quorum health, indexer state, and persistence availability for M2M Sentinel infrastructure. Does not return blockchain or market telemetry.',
+    description: 'Fetch operational status, upstream Base RPC quorum health, indexer state, and persistence availability for M2M Sentinel infrastructure. Does not return blockchain or market telemetry.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -219,12 +202,8 @@ function pathForTool(name, args) {
     case 'get_gas_fees':
       return '/v1/gas/fees';
     case 'm2m_get_dex_liquidity':
-    case 'get_dex_metrics': {
-      if (input.pair) {
-        return '/v1/dex/metrics?pair=' + encodeURIComponent(String(input.pair).trim());
-      }
+    case 'get_dex_metrics':
       return '/v1/dex/metrics';
-    }
     case 'm2m_get_token_price':
     case 'get_token_price': {
       const sym = input.symbol ? String(input.symbol).trim().toUpperCase() : '';
@@ -232,15 +211,8 @@ function pathForTool(name, args) {
       return '/v1/token/price/' + encodeURIComponent(sym);
     }
     case 'm2m_get_whale_signals':
-    case 'get_whale_signals': {
-      if (input.limit !== undefined && input.limit !== null && input.limit !== '') {
-        const limitNum = Number(input.limit);
-        if (Number.isFinite(limitNum) && limitNum > 0) {
-          return '/v1/whales/signals?limit=' + encodeURIComponent(Math.min(Math.max(1, Math.floor(limitNum)), 50));
-        }
-      }
+    case 'get_whale_signals':
       return '/v1/whales/signals';
-    }
     case 'm2m_get_service_status':
       return '/v1/status';
     default:
@@ -353,8 +325,8 @@ COMMANDS:
   audit <address>        Disassemble bytecode, detect capabilities & resolve proxies
   gas                    Fetch real-time Base Mainnet gas metrics & advice
   price <symbol>         Fetch DEX liquidity-weighted token price (USDC, WETH, AERO)
-  dex [pair]             Fetch tracked Base liquidity pool metrics
-  whales [limit]         Fetch large ERC-20 transfer signals on Base
+  dex                    Fetch aggregate tracked Base liquidity pool metrics
+  whales                 Fetch large ERC-20 transfer signals on Base (up to 50)
   status                 Check live API, RPC quorum, and persistence health
   mcp                    Launch Model Context Protocol stdio JSON-RPC server
 

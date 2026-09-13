@@ -64,7 +64,7 @@
     },
     {
       "name": "m2m_get_gas_metrics",
-      "description": "Fetch real-time Base network gas fee metrics (standard, fast, instant in gwei) and transaction execution recommendations. Sourced for Base Mainnet execution timing; does not inspect contract code or fetch token/DEX pricing.",
+      "description": "Fetch Base network gas fee metrics (standard, fast, instant in gwei) and transaction execution recommendations. Sourced for Base Mainnet execution timing; does not inspect contract code or fetch token/DEX pricing.",
       "inputSchema": {
         "type": "object",
         "properties": {}
@@ -78,7 +78,7 @@
     },
     {
       "name": "m2m_get_token_price",
-      "description": "Fetch real-time Base DEX liquidity-weighted spot price in USD, contract address, decimals, and pool source for a single allowlisted token symbol (e.g. USDC, WETH, AERO). Does not return historical price series; contrast with m2m_get_dex_liquidity which returns pool reserve depth rather than asset spot prices.",
+      "description": "Fetch Base DEX liquidity-weighted spot price in USD, contract address, decimals, and pool source for a single allowlisted token symbol (e.g. USDC, WETH, AERO). Does not return historical price series; contrast with m2m_get_dex_liquidity which returns pool reserve depth rather than asset spot prices.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -100,15 +100,10 @@
     },
     {
       "name": "m2m_get_dex_liquidity",
-      "description": "Fetch real-time pool reserve, depth, and volume metrics for tracked Base DEX liquidity pools, with optional single-pair filtering (e.g. WETH-USDC). Evaluates pool liquidity health; contrast with m2m_get_token_price which observes token spot prices.",
+      "description": "Fetch real-time aggregate pool reserve, depth, and volume metrics across tracked Base DEX liquidity pools. Evaluates overall tracked pool liquidity health (aggregate tracked-pool metrics; does not filter by individual trading pair). Contrast with m2m_get_token_price which observes token spot prices.",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "pair": {
-            "type": "string",
-            "description": "Optional Base DEX trading pair identifier (e.g. 'WETH-USDC'). If omitted, returns primary tracked Base pool reserves."
-          }
-        }
+        "properties": {}
       },
       "annotations": {
         "readOnlyHint": true,
@@ -119,15 +114,10 @@
     },
     {
       "name": "m2m_get_whale_signals",
-      "description": "Fetch tracked recent high-value ERC-20 transfer and concentration signals on Base with transaction hash, transfer addresses, and value provenance. Observes large on-chain transfer events; does not inspect contract bytecode or query DEX pricing.",
+      "description": "Fetch tracked recent high-value ERC-20 transfer and concentration signals on Base (returns up to 50 recent signals) with transaction hash, transfer addresses, and value provenance. Observes large on-chain transfer events without query parameter limits; does not inspect contract bytecode or query DEX pricing.",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "limit": {
-            "type": "number",
-            "description": "Optional maximum number of recent whale transfer signals to return (integer between 1 and 50, default 10)."
-          }
-        }
+        "properties": {}
       },
       "annotations": {
         "readOnlyHint": true,
@@ -138,7 +128,7 @@
     },
     {
       "name": "m2m_get_service_status",
-      "description": "Fetch real-time operational status, upstream Base RPC quorum health, indexer state, and persistence availability for M2M Sentinel infrastructure. Does not return blockchain or market telemetry.",
+      "description": "Fetch operational status, upstream Base RPC quorum health, indexer state, and persistence availability for M2M Sentinel infrastructure. Does not return blockchain or market telemetry.",
       "inputSchema": {
         "type": "object",
         "properties": {}

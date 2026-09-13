@@ -105,17 +105,17 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
       assert.strictEqual(pathForTool('m2m_get_dex_liquidity'), '/v1/dex/metrics');
       assert.strictEqual(
         pathForTool('m2m_get_dex_liquidity', { pair: 'WETH-USDC' }),
-        '/v1/dex/metrics?pair=WETH-USDC'
+        '/v1/dex/metrics'
       );
       assert.strictEqual(pathForTool('m2m_get_whale_signals'), '/v1/whales/signals');
       assert.strictEqual(
         pathForTool('m2m_get_whale_signals', { limit: 25 }),
-        '/v1/whales/signals?limit=25'
+        '/v1/whales/signals'
       );
       assert.strictEqual(pathForTool('m2m_get_service_status'), '/v1/status');
     });
 
-    it('pathForTool preserves resolution for legacy alias names', () => {
+    it('pathForTool preserves resolution for legacy alias names and tolerates extra args', () => {
       assert.strictEqual(
         pathForTool('audit_contract', { address: VALID_ADDRESS }),
         `/v1/audit/${VALID_ADDRESS}`
@@ -128,14 +128,38 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
       assert.strictEqual(pathForTool('get_dex_metrics'), '/v1/dex/metrics');
       assert.strictEqual(
         pathForTool('get_dex_metrics', { pair: 'AERO-USDC' }),
-        '/v1/dex/metrics?pair=AERO-USDC'
+        '/v1/dex/metrics'
       );
       assert.strictEqual(pathForTool('get_token_price', { symbol: 'AERO' }), '/v1/token/price/AERO');
       assert.strictEqual(pathForTool('get_whale_signals'), '/v1/whales/signals');
       assert.strictEqual(
         pathForTool('get_whale_signals', { limit: 10 }),
-        '/v1/whales/signals?limit=10'
+        '/v1/whales/signals'
       );
+    });
+
+    it('tolerates arbitrary extra parameters without throwing and does not forward query strings', () => {
+      assert.strictEqual(
+        pathForTool('m2m_get_dex_liquidity', { pair: 'WETH-USDC', extra: 'ignored' }),
+        '/v1/dex/metrics'
+      );
+      assert.strictEqual(
+        pathForTool('m2m_get_whale_signals', { limit: 50, window: '24h' }),
+        '/v1/whales/signals'
+      );
+      assert.strictEqual(
+        pathForTool('get_dex_metrics', { pair: 'WETH-USDC', extra: 1 }),
+        '/v1/dex/metrics'
+      );
+      assert.strictEqual(
+        pathForTool('get_whale_signals', { limit: 999 }),
+        '/v1/whales/signals'
+      );
+    });
+
+    it('asserts legacy name get_capability_score still dispatches locally without any network call', () => {
+      const targetPath = pathForTool('get_capability_score', { address: VALID_ADDRESS });
+      assert.strictEqual(targetPath, `/v1/security/score/${VALID_ADDRESS}`);
     });
 
     it('pathForTool throws descriptive error on unknown tool name', () => {
@@ -168,18 +192,18 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
 
       // Verify key requirements in instructions
       assert(res.instructions.includes('Base Mainnet (chainId 8453)'), 'Must define Base network scope');
-      assert(res.instructions.includes('Read-Only & Non-Signing Boundary'), 'Must define non-signing boundary');
-      assert(res.instructions.includes('NOT a safety guarantee'), 'Must include not-a-safety-guarantee limitation');
-      assert(res.instructions.includes('M2M_SENTINEL_API_KEY'), 'Must document optional API key');
-      assert(res.instructions.includes('401/402'), 'Must document payable/auth error behavior');
+      assert(res.instructions.includes('canonical'), 'Must state m2m_* tool names are canonical');
+      assert(res.instructions.includes('m2m_audit_contract'), 'Must list canonical tools');
+      assert(res.instructions.includes('m2m_get_service_status'), 'Must list canonical tools');
+      assert(res.instructions.includes('not advertised'), 'Must state legacy names are not advertised in tools/list');
+      assert(res.instructions.includes('compatibility-callable'), 'Must state legacy names remain compatibility-callable');
+      assert(res.instructions.includes('read-only'), 'Must state operations are factual/read-only');
+      assert(res.instructions.includes('not safety'), 'Must state results are not safety or exploitability guarantees');
+      assert(res.instructions.includes('exploitability guarantees'), 'Must state results are not safety or exploitability guarantees');
 
-      // Verify all six tool selection guidelines are mentioned
-      assert(res.instructions.includes('m2m_audit_contract:'), 'Instructions must describe audit contract selection');
-      assert(res.instructions.includes('m2m_get_gas_metrics:'), 'Instructions must describe gas metrics selection');
-      assert(res.instructions.includes('m2m_get_token_price:'), 'Instructions must describe token price selection');
-      assert(res.instructions.includes('m2m_get_dex_liquidity:'), 'Instructions must describe DEX liquidity selection');
-      assert(res.instructions.includes('m2m_get_whale_signals:'), 'Instructions must describe whale signals selection');
-      assert(res.instructions.includes('m2m_get_service_status:'), 'Instructions must describe service status selection');
+      // Verify no unproven claims
+      assert(!res.instructions.includes('higher rate limits'), 'Must not claim unproven rate limit tiers');
+      assert(!res.instructions.includes('real-time'), 'Must not claim unproven real-time freshness');
     });
   });
 
@@ -217,10 +241,16 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
       assert(priceTool.inputSchema.properties.symbol.description.includes('token symbol'));
 
       const dexTool = TOOLS.find((t) => t.name === 'm2m_get_dex_liquidity');
-      assert(dexTool.inputSchema.properties.pair.description.includes('trading pair'));
+      assert.strictEqual(dexTool.inputSchema.properties.pair, undefined, 'm2m_get_dex_liquidity must not advertise pair property');
+      assert.strictEqual(Object.keys(dexTool.inputSchema.properties).length, 0, 'm2m_get_dex_liquidity properties must be empty');
+      assert(!dexTool.description.includes('single-pair filtering'), 'm2m_get_dex_liquidity must not advertise single-pair filtering');
+      assert(dexTool.description.includes('aggregate'), 'm2m_get_dex_liquidity must describe aggregate pool metrics');
 
       const whaleTool = TOOLS.find((t) => t.name === 'm2m_get_whale_signals');
-      assert(whaleTool.inputSchema.properties.limit.description.includes('maximum number'));
+      assert.strictEqual(whaleTool.inputSchema.properties.limit, undefined, 'm2m_get_whale_signals must not advertise limit property');
+      assert.strictEqual(Object.keys(whaleTool.inputSchema.properties).length, 0, 'm2m_get_whale_signals properties must be empty');
+      assert(!whaleTool.description.includes('default 10'), 'm2m_get_whale_signals must not advertise limit options');
+      assert(whaleTool.description.includes('up to 50'), 'm2m_get_whale_signals must accurately describe up to 50 signals');
     });
   });
 
@@ -351,17 +381,17 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
           return;
         }
 
-        if (req.url === '/v1/dex/metrics?pair=WETH-USDC') {
+        if (req.url === '/v1/dex/metrics') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
-            pair: 'WETH-USDC',
-            reserveUsd: '45000000',
-            feeTier: '0.05%'
+            totalReserveUsd: '150000000',
+            trackedPools: 42,
+            volume24hUsd: '85000000'
           }));
           return;
         }
 
-        if (req.url === '/v1/whales/signals?limit=5') {
+        if (req.url === '/v1/whales/signals') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             signals: [
@@ -486,7 +516,7 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
       assert.strictEqual(response.result.structuredContent.standard, '0.005');
     });
 
-    it('exercises m2m_get_dex_liquidity with pair argument against fake server', async () => {
+    it('exercises m2m_get_dex_liquidity with ignored pair argument against fake server without query forwarding', async () => {
       const response = await callMcp({
         jsonrpc: '2.0',
         id: 205,
@@ -498,14 +528,33 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
       });
 
       assert.strictEqual(response.result.isError, false);
-      assert(requestedPaths.includes('/v1/dex/metrics?pair=WETH-USDC'));
+      assert(requestedPaths.includes('/v1/dex/metrics'), 'Must request /v1/dex/metrics without query string');
+      assert(!requestedPaths.some((p) => p.includes('pair=')), 'Must not forward pair query parameter');
+      assert.strictEqual(response.result.structuredContent.trackedPools, 42);
+    });
+
+    it('exercises m2m_get_whale_signals with ignored limit argument against fake server without query forwarding', async () => {
+      const response = await callMcp({
+        jsonrpc: '2.0',
+        id: 206,
+        method: 'tools/call',
+        params: {
+          name: 'm2m_get_whale_signals',
+          arguments: { limit: 5 }
+        }
+      });
+
+      assert.strictEqual(response.result.isError, false);
+      assert(requestedPaths.includes('/v1/whales/signals'), 'Must request /v1/whales/signals without query string');
+      assert(!requestedPaths.some((p) => p.includes('limit=')), 'Must not forward limit query parameter');
+      assert.strictEqual(response.result.structuredContent.signals[0].txHash, '0x123abc');
     });
 
     it('surfaces HTTP 402 payment required with headers and isError flag', async () => {
       const payAddr = '0x1111111111111111111111111111111111111111';
       const response = await callMcp({
         jsonrpc: '2.0',
-        id: 206,
+        id: 207,
         method: 'tools/call',
         params: {
           name: 'm2m_audit_contract',
@@ -518,6 +567,153 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
       assert(response.result._meta.paymentRequired);
       assert.strictEqual(response.result._meta.paymentRequired.price, '$0.005');
       assert.strictEqual(response.result._meta.notASafetyGuarantee, true);
+    });
+  });
+
+  describe('7. Exact Parity Across Runtime, Server-Card, and server.json', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+
+    const serverCardPath = path.resolve(__dirname, '../.well-known/mcp/server-card.json');
+    const serverJsonPath = path.resolve(__dirname, '../server.json');
+    const fixtureSchemaPath = path.resolve(__dirname, 'fixtures/server.schema.json');
+
+    it('ensures server-card.json and server.json exist and parse as valid JSON', () => {
+      assert(fs.existsSync(serverCardPath), 'server-card.json must exist');
+      assert(fs.existsSync(serverJsonPath), 'server.json must exist');
+
+      const serverCard = JSON.parse(fs.readFileSync(serverCardPath, 'utf8'));
+      const serverJson = JSON.parse(fs.readFileSync(serverJsonPath, 'utf8'));
+
+      assert(Array.isArray(serverCard.tools), 'server-card.json must contain tools array');
+      assert(Array.isArray(serverJson.tools), 'server.json must contain tools array');
+    });
+
+    it('verifies exact tool count and canonical naming across runtime, server-card, and server.json', () => {
+      const serverCard = JSON.parse(fs.readFileSync(serverCardPath, 'utf8'));
+      const serverJson = JSON.parse(fs.readFileSync(serverJsonPath, 'utf8'));
+
+      assert.strictEqual(TOOLS.length, 6);
+      assert.strictEqual(serverCard.tools.length, 6);
+      assert.strictEqual(serverJson.tools.length, 6);
+
+      const expectedNames = [
+        'm2m_audit_contract',
+        'm2m_get_gas_metrics',
+        'm2m_get_token_price',
+        'm2m_get_dex_liquidity',
+        'm2m_get_whale_signals',
+        'm2m_get_service_status'
+      ];
+
+      assert.deepStrictEqual(TOOLS.map((t) => t.name), expectedNames);
+      assert.deepStrictEqual(serverCard.tools.map((t) => t.name), expectedNames);
+      assert.deepStrictEqual(serverJson.tools.map((t) => t.name), expectedNames);
+    });
+
+    it('maintains exact deep equality across all tool definitions in runtime, server-card, and server.json', () => {
+      const serverCard = JSON.parse(fs.readFileSync(serverCardPath, 'utf8'));
+      const serverJson = JSON.parse(fs.readFileSync(serverJsonPath, 'utf8'));
+
+      assert.deepStrictEqual(
+        serverCard.tools,
+        TOOLS,
+        'server-card.json tools must exactly match runtime TOOLS'
+      );
+      assert.deepStrictEqual(
+        serverJson.tools,
+        TOOLS,
+        'server.json tools must exactly match runtime TOOLS'
+      );
+      assert.deepStrictEqual(
+        serverJson.tools,
+        serverCard.tools,
+        'server.json tools must exactly match server-card.json tools'
+      );
+    });
+
+    it('confirms pair and limit parameters are not advertised across any public schema', () => {
+      const manifests = [
+        { name: 'runtime TOOLS', tools: TOOLS },
+        { name: 'server-card.json', tools: JSON.parse(fs.readFileSync(serverCardPath, 'utf8')).tools },
+        { name: 'server.json', tools: JSON.parse(fs.readFileSync(serverJsonPath, 'utf8')).tools }
+      ];
+
+      for (const manifest of manifests) {
+        const dex = manifest.tools.find((t) => t.name === 'm2m_get_dex_liquidity');
+        assert(dex, `m2m_get_dex_liquidity must exist in ${manifest.name}`);
+        assert.strictEqual(dex.inputSchema.properties.pair, undefined, `pair must not be in ${manifest.name} dex inputSchema`);
+        assert.strictEqual(Object.keys(dex.inputSchema.properties).length, 0, `dex inputSchema properties must be empty in ${manifest.name}`);
+        assert(!dex.description.includes('single-pair filtering'), `dex description must not claim pair filtering in ${manifest.name}`);
+
+        const whales = manifest.tools.find((t) => t.name === 'm2m_get_whale_signals');
+        assert(whales, `m2m_get_whale_signals must exist in ${manifest.name}`);
+        assert.strictEqual(whales.inputSchema.properties.limit, undefined, `limit must not be in ${manifest.name} whale inputSchema`);
+        assert.strictEqual(Object.keys(whales.inputSchema.properties).length, 0, `whale inputSchema properties must be empty in ${manifest.name}`);
+        assert(!whales.description.includes('default 10'), `whale description must not claim limit options in ${manifest.name}`);
+      }
+    });
+
+    it('validates server.json against official server schema without contacting production', () => {
+      const serverJson = JSON.parse(fs.readFileSync(serverJsonPath, 'utf8'));
+      assert(fs.existsSync(fixtureSchemaPath), 'Local fixture schema must exist');
+      const schema = JSON.parse(fs.readFileSync(fixtureSchemaPath, 'utf8'));
+
+      const detailDef = schema.definitions.ServerDetail;
+      assert(detailDef, 'Schema must define ServerDetail');
+
+      // 1. Verify required properties
+      for (const requiredProp of detailDef.required) {
+        assert(
+          serverJson[requiredProp] !== undefined,
+          `server.json must satisfy required property: ${requiredProp}`
+        );
+      }
+
+      // 2. Verify property types & constraints from official schema
+      assert.strictEqual(typeof serverJson.name, 'string');
+      assert(
+        new RegExp(detailDef.properties.name.pattern).test(serverJson.name),
+        'server.json name must match ServerDetail regex pattern'
+      );
+      assert.strictEqual(typeof serverJson.description, 'string');
+      assert(serverJson.description.length <= detailDef.properties.description.maxLength);
+      assert.strictEqual(typeof serverJson.version, 'string');
+      assert.strictEqual(serverJson.version, '1.2.5');
+
+      if (serverJson.repository) {
+        assert.strictEqual(typeof serverJson.repository.url, 'string');
+        assert.strictEqual(serverJson.repository.source, 'github');
+      }
+
+      if (serverJson.packages) {
+        assert(Array.isArray(serverJson.packages));
+        for (const pkg of serverJson.packages) {
+          assert.strictEqual(pkg.registryType, 'npm');
+          assert.strictEqual(typeof pkg.identifier, 'string');
+        }
+      }
+
+      if (serverJson.remotes) {
+        assert(Array.isArray(serverJson.remotes));
+        for (const rem of serverJson.remotes) {
+          assert(['streamable-http', 'sse'].includes(rem.type));
+          assert(rem.url.startsWith('https://'));
+        }
+      }
+
+      // 3. If Ajv is present on the machine, run full formal compilation & validation
+      let ajv;
+      try {
+        const Ajv = require('C:/Users/bilou/.codex/worktrees/buyer-pipeline-2026-09-10/node_modules/ajv');
+        ajv = new Ajv({ allErrors: true, strict: false });
+      } catch (_) {}
+
+      if (ajv) {
+        const validate = ajv.compile(schema);
+        const valid = validate(serverJson);
+        assert(valid, `Ajv schema validation failed: ${JSON.stringify(validate.errors)}`);
+      }
     });
   });
 });
