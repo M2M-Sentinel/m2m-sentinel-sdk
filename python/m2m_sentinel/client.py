@@ -56,7 +56,7 @@ class M2MSentinelClient:
     def _request(self, method, path, data=None, api_key = None, payment_signature = None, operator_token=None):
         headers = {
             "Accept": "application/json",
-            "User-Agent": "M2MSentinel-Python/1.2.5",
+            "User-Agent": "M2MSentinel-Python/1.2.6",
         }
         if data is not None:
             headers["Content-Type"] = "application/json"

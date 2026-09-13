@@ -185,7 +185,7 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
 
       const res = response.result;
       assert.strictEqual(res.serverInfo.name, 'm2m-sentinel-mcp');
-      assert.strictEqual(res.serverInfo.version, '1.2.5');
+      assert.strictEqual(res.serverInfo.version, '1.2.6');
       assert.deepStrictEqual(res.capabilities, { tools: {} });
 
       assert(typeof res.instructions === 'string' && res.instructions.length > 50);
@@ -680,7 +680,7 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
       assert.strictEqual(typeof serverJson.description, 'string');
       assert(serverJson.description.length <= detailDef.properties.description.maxLength);
       assert.strictEqual(typeof serverJson.version, 'string');
-      assert.strictEqual(serverJson.version, '1.2.5');
+      assert.strictEqual(serverJson.version, '1.2.6');
 
       if (serverJson.repository) {
         assert.strictEqual(typeof serverJson.repository.url, 'string');
