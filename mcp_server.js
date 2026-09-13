@@ -10,69 +10,139 @@ let API_KEY = process.env.M2M_SENTINEL_API_KEY || '';
 const TIMEOUT_MS = Number(process.env.M2M_SENTINEL_TIMEOUT_MS || 30000);
 const VERSION = '1.2.5';
 
+const SERVER_INSTRUCTIONS =
+  'M2M Sentinel MCP Server provides factual EVM bytecode capability analysis and market telemetry strictly for Base Mainnet (chainId 8453).\n\n' +
+  'Scope and Operational Boundaries:\n' +
+  '- Network Scope: Base Mainnet (chainId 8453) only.\n' +
+  '- Read-Only & Non-Signing Boundary: All tools perform non-destructive, observational queries. The server never custodies private keys, signs transactions, or executes on-chain state changes. Callers own all transaction signing and execution policy.\n' +
+  '- Factual Evidence Limitation: Tool outputs represent factual static bytecode patterns and on-chain telemetry. They are NOT a safety guarantee, economic security audit, endorsement, or proof of absence of vulnerabilities.\n' +
+  '- Authentication & Upstream Errors: Public endpoints operate without credentials. Optional M2M_SENTINEL_API_KEY provides higher rate limits. Paid or restricted routes may return HTTP 401/402 (with x402 payment headers) or 429/503 upstream errors, which the server surfaces with isError: true and HTTP/x402 metadata in _meta.\n\n' +
+  'Tool Selection Guide:\n' +
+  '1. m2m_audit_contract: Use when analyzing a Base smart contract address (0x...) for static bytecode capabilities (mint, pause, blacklist, proxy target resolution, capability coverage index). Does not evaluate runtime exploitability.\n' +
+  '2. m2m_get_gas_metrics: Use to fetch current Base network gas fee metrics (standard, fast, instant in gwei) and transaction timing recommendations.\n' +
+  '3. m2m_get_token_price: Use to fetch spot price and pool provenance for allowlisted tokens on Base (e.g. USDC, WETH, AERO). Requires token symbol; does not return historical charts.\n' +
+  '4. m2m_get_dex_liquidity: Use to inspect liquidity depth and reserve metrics for Base DEX pools (optionally filtered by pair, e.g. WETH-USDC).\n' +
+  '5. m2m_get_whale_signals: Use to observe recent high-value transfer events and concentration signals on Base (optional limit up to 50).\n' +
+  '6. m2m_get_service_status: Use to inspect the operational availability and health of M2M Sentinel upstream RPC nodes, indexers, and persistence rails.';
+
 const TOOLS = [
   {
     name: 'm2m_audit_contract',
-    description: 'Return selected static bytecode capability observations, common proxy resolution, limitations, and provenance for a Base contract. This is factual capability observation, not a safety or exploitability guarantee.',
-    inputSchema: { type: 'object', properties: { address: { type: 'string', description: 'Base contract address (0x...)' } }, required: ['address'] }
+    description: 'Inspect static bytecode capabilities (e.g. mint, pause, blacklist, upgradeability slots), common proxy target resolution, and coverage index for a single Base contract address. Factual capability observation only, not a safety or exploitability guarantee. Distinguishable from m2m_get_service_status (infrastructure health) and legacy score-only endpoints.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        address: {
+          type: 'string',
+          description: 'Base contract address (0x-prefixed 40-hex string, chainId 8453) to inspect.'
+        }
+      },
+      required: ['address']
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
   },
   {
     name: 'm2m_get_gas_metrics',
-    description: 'Return sourced Base gas fee metrics and execution recommendations.',
-    inputSchema: { type: 'object', properties: {} }
+    description: 'Fetch real-time Base network gas fee metrics (standard, fast, instant in gwei) and transaction execution recommendations. Sourced for Base Mainnet execution timing; does not inspect contract code or fetch token/DEX pricing.',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true
+    }
   },
   {
     name: 'm2m_get_token_price',
-    description: 'Return sourced Base DEX token price observation for allowlisted assets (e.g. USDC, WETH).',
-    inputSchema: { type: 'object', properties: { symbol: { type: 'string', description: 'Token symbol (USDC, WETH)' } }, required: ['symbol'] }
+    description: 'Fetch real-time Base DEX liquidity-weighted spot price in USD, contract address, decimals, and pool source for a single allowlisted token symbol (e.g. USDC, WETH, AERO). Does not return historical price series; contrast with m2m_get_dex_liquidity which returns pool reserve depth rather than asset spot prices.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: {
+          type: 'string',
+          description: 'Allowlisted token symbol on Base (e.g. USDC, WETH, AERO). Lookups are case-insensitive single symbols.'
+        }
+      },
+      required: ['symbol']
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true
+    }
   },
   {
     name: 'm2m_get_dex_liquidity',
-    description: 'Return tracked Base DEX pool reserve and liquidity metrics.',
-    inputSchema: { type: 'object', properties: { pair: { type: 'string' } } }
+    description: 'Fetch real-time pool reserve, depth, and volume metrics for tracked Base DEX liquidity pools, with optional single-pair filtering (e.g. WETH-USDC). Evaluates pool liquidity health; contrast with m2m_get_token_price which observes token spot prices.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pair: {
+          type: 'string',
+          description: "Optional Base DEX trading pair identifier (e.g. 'WETH-USDC'). If omitted, returns primary tracked Base pool reserves."
+        }
+      }
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true
+    }
   },
   {
     name: 'm2m_get_whale_signals',
-    description: 'Return tracked Base whale transfer signals.',
-    inputSchema: { type: 'object', properties: { limit: { type: 'number' } } }
+    description: 'Fetch tracked recent high-value ERC-20 transfer and concentration signals on Base with transaction hash, transfer addresses, and value provenance. Observes large on-chain transfer events; does not inspect contract bytecode or query DEX pricing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Optional maximum number of recent whale transfer signals to return (integer between 1 and 50, default 10).'
+        }
+      }
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true
+    }
   },
   {
     name: 'm2m_get_service_status',
-    description: 'Return real-time operational status of M2M Sentinel upstream RPC and persistence rails.',
-    inputSchema: { type: 'object', properties: {} }
-  },
-  // Backwards compatibility aliases
-  {
-    name: 'audit_contract',
-    description: 'Alias for m2m_audit_contract.',
-    inputSchema: { type: 'object', properties: { address: { type: 'string' } }, required: ['address'] }
-  },
-  {
-    name: 'get_capability_score',
-    description: 'Return the static capability coverage index and provenance for a Base contract. This is not a safety score.',
-    inputSchema: { type: 'object', properties: { address: { type: 'string' } }, required: ['address'] }
-  },
-  {
-    name: 'get_gas_fees',
-    description: 'Alias for m2m_get_gas_metrics.',
-    inputSchema: { type: 'object', properties: {} }
-  },
-  {
-    name: 'get_dex_metrics',
-    description: 'Alias for m2m_get_dex_liquidity.',
-    inputSchema: { type: 'object', properties: {} }
-  },
-  {
-    name: 'get_token_price',
-    description: 'Alias for m2m_get_token_price.',
-    inputSchema: { type: 'object', properties: { symbol: { type: 'string' } }, required: ['symbol'] }
-  },
-  {
-    name: 'get_whale_signals',
-    description: 'Alias for m2m_get_whale_signals.',
-    inputSchema: { type: 'object', properties: {} }
+    description: 'Fetch real-time operational status, upstream Base RPC quorum health, indexer state, and persistence availability for M2M Sentinel infrastructure. Does not return blockchain or market telemetry.',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true
+    }
   }
 ];
+
+// Backwards compatibility alias lookup
+const TOOL_ALIASES = Object.freeze({
+  audit_contract: 'm2m_audit_contract',
+  get_capability_score: 'm2m_audit_contract',
+  get_gas_fees: 'm2m_get_gas_metrics',
+  get_dex_metrics: 'm2m_get_dex_liquidity',
+  get_token_price: 'm2m_get_token_price',
+  get_whale_signals: 'm2m_get_whale_signals'
+});
 
 function parseX402Header(value) {
   if (!value) return null;
@@ -87,8 +157,8 @@ function parseX402Header(value) {
 }
 
 function queryApi(path, customApiKey = null, customBaseUrl = null) {
-  const activeBaseUrl = customBaseUrl || BASE_URL;
-  const activeApiKey = customApiKey !== null ? customApiKey : API_KEY;
+  const activeBaseUrl = customBaseUrl || process.env.M2M_SENTINEL_BASE_URL || BASE_URL;
+  const activeApiKey = customApiKey !== null ? customApiKey : (process.env.M2M_SENTINEL_API_KEY || API_KEY);
 
   return new Promise((resolve, reject) => {
     const url = new URL(path, activeBaseUrl);
@@ -129,25 +199,48 @@ function pathForTool(name, args) {
   const input = args || {};
   switch (name) {
     case 'm2m_audit_contract':
-    case 'audit_contract':
-      if (!input.address) throw new Error('address is required');
-      return '/v1/audit/' + encodeURIComponent(input.address);
-    case 'get_capability_score':
-      if (!input.address) throw new Error('address is required');
-      return '/v1/security/score/' + encodeURIComponent(input.address);
+    case 'audit_contract': {
+      const addr = input.address ? String(input.address).trim() : '';
+      if (!addr) throw new Error('address is required');
+      if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+        throw new Error('A valid 40-hex 0x-prefixed Base contract address is required');
+      }
+      return '/v1/audit/' + encodeURIComponent(addr);
+    }
+    case 'get_capability_score': {
+      const addr = input.address ? String(input.address).trim() : '';
+      if (!addr) throw new Error('address is required');
+      if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+        throw new Error('A valid 40-hex 0x-prefixed Base contract address is required');
+      }
+      return '/v1/security/score/' + encodeURIComponent(addr);
+    }
     case 'm2m_get_gas_metrics':
     case 'get_gas_fees':
       return '/v1/gas/fees';
     case 'm2m_get_dex_liquidity':
-    case 'get_dex_metrics':
+    case 'get_dex_metrics': {
+      if (input.pair) {
+        return '/v1/dex/metrics?pair=' + encodeURIComponent(String(input.pair).trim());
+      }
       return '/v1/dex/metrics';
+    }
     case 'm2m_get_token_price':
-    case 'get_token_price':
-      if (!input.symbol) throw new Error('symbol is required');
-      return '/v1/token/price/' + encodeURIComponent(input.symbol);
+    case 'get_token_price': {
+      const sym = input.symbol ? String(input.symbol).trim().toUpperCase() : '';
+      if (!sym) throw new Error('symbol is required');
+      return '/v1/token/price/' + encodeURIComponent(sym);
+    }
     case 'm2m_get_whale_signals':
-    case 'get_whale_signals':
+    case 'get_whale_signals': {
+      if (input.limit !== undefined && input.limit !== null && input.limit !== '') {
+        const limitNum = Number(input.limit);
+        if (Number.isFinite(limitNum) && limitNum > 0) {
+          return '/v1/whales/signals?limit=' + encodeURIComponent(Math.min(Math.max(1, Math.floor(limitNum)), 50));
+        }
+      }
       return '/v1/whales/signals';
+    }
     case 'm2m_get_service_status':
       return '/v1/status';
     default:
@@ -173,24 +266,32 @@ function failure(id, code, message, data) {
   send({ jsonrpc: '2.0', id, error });
 }
 
-async function handleMcpMessage(request) {
+async function handleMcpMessage(request, responder = null) {
+  const replySuccess = responder ? (id, res) => responder({ jsonrpc: '2.0', id, result: res }) : success;
+  const replyFailure = responder ? (id, code, msg, data) => {
+    const error = { code, message: msg };
+    if (data !== undefined) error.data = data;
+    responder({ jsonrpc: '2.0', id, error });
+  } : failure;
+
   if (!request || request.jsonrpc !== '2.0' || typeof request.method !== 'string') {
-    failure(request && request.id !== undefined ? request.id : null, -32600, 'Invalid Request');
+    replyFailure(request && request.id !== undefined ? request.id : null, -32600, 'Invalid Request');
     return;
   }
   if (request.id === undefined || request.id === null) return;
 
   try {
     if (request.method === 'initialize') {
-      success(request.id, {
+      replySuccess(request.id, {
         protocolVersion: request.params && request.params.protocolVersion ? request.params.protocolVersion : '2024-11-05',
         capabilities: { tools: {} },
-        serverInfo: { name: 'm2m-sentinel-mcp', version: VERSION }
+        serverInfo: { name: 'm2m-sentinel-mcp', version: VERSION },
+        instructions: SERVER_INSTRUCTIONS
       });
       return;
     }
     if (request.method === 'tools/list') {
-      success(request.id, { tools: TOOLS });
+      replySuccess(request.id, { tools: TOOLS });
       return;
     }
     if (request.method === 'tools/call') {
@@ -198,7 +299,7 @@ async function handleMcpMessage(request) {
       const path = pathForTool(params.name, params.arguments || {});
       const apiResult = await queryApi(path);
       const isError = !apiResult.ok;
-      success(request.id, {
+      replySuccess(request.id, {
         content: [{ type: 'text', text: typeof apiResult.body === 'object' ? JSON.stringify(apiResult.body, null, 2) : String(apiResult.body) }],
         isError,
         structuredContent: apiResult.body,
@@ -212,9 +313,9 @@ async function handleMcpMessage(request) {
       });
       return;
     }
-    failure(request.id, -32601, 'Method not found');
+    replyFailure(request.id, -32601, 'Method not found');
   } catch (err) {
-    failure(request.id, -32603, err && err.message ? err.message : 'Internal error');
+    replyFailure(request.id, -32603, err && err.message ? err.message : 'Internal error');
   }
 }
 
@@ -473,20 +574,32 @@ async function runCli(args) {
 // Entrypoint: Dual Mode Selection
 // ---------------------------------------------------------------------------
 
-const cliArgs = process.argv.slice(2);
+if (require.main === module) {
+  const cliArgs = process.argv.slice(2);
 
-// If arguments are passed or run in an interactive terminal, invoke CLI
-if (cliArgs.length > 0 || (process.stdin.isTTY && !process.env.M2M_MCP_FORCE)) {
-  if (cliArgs.length === 0) {
-    printHelp();
+  // If arguments are passed or run in an interactive terminal, invoke CLI
+  if (cliArgs.length > 0 || (process.stdin.isTTY && !process.env.M2M_MCP_FORCE)) {
+    if (cliArgs.length === 0) {
+      printHelp();
+    } else {
+      runCli(cliArgs).then((code) => {
+        if (code !== 0 && typeof code === 'number') process.exit(code);
+      });
+    }
   } else {
-    runCli(cliArgs).then((code) => {
-      if (code !== 0 && typeof code === 'number') process.exit(code);
-    });
+    // Piped execution without args -> start MCP stdio server
+    startMcpServer();
   }
-} else {
-  // Piped execution without args -> start MCP stdio server
-  startMcpServer();
 }
 
-module.exports = { TOOLS, pathForTool, parseX402Header, runCli, queryApi };
+module.exports = {
+  TOOLS,
+  TOOL_ALIASES,
+  SERVER_INSTRUCTIONS,
+  pathForTool,
+  parseX402Header,
+  runCli,
+  queryApi,
+  handleMcpMessage,
+  startMcpServer
+};

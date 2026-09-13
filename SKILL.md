@@ -14,6 +14,7 @@ Use this skill whenever an autonomous agent or application needs to inspect smar
 - **`m2m_get_token_price(symbol)`**: Sourced Base DEX price observation for allowlisted assets (e.g. USDC, WETH).
 - **`m2m_get_dex_liquidity(pair)`**: DEX pool reserve depth telemetry.
 - **`m2m_get_whale_signals(limit)`**: On-chain transfer signals for Base assets.
+- **`m2m_get_service_status()`**: Real-time operational availability and health status of M2M Sentinel upstream Base RPC quorum and persistence rails.
 
 ---
 

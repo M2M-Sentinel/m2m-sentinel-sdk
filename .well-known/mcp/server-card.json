@@ -42,76 +42,112 @@
   "tools": [
     {
       "name": "m2m_audit_contract",
-      "description": "Return selected static bytecode capability observations, common proxy resolution, limitations, and provenance for a Base contract. This is factual capability observation, not a safety or exploitability guarantee.",
+      "description": "Inspect static bytecode capabilities (e.g. mint, pause, blacklist, upgradeability slots), common proxy target resolution, and coverage index for a single Base contract address. Factual capability observation only, not a safety or exploitability guarantee. Distinguishable from m2m_get_service_status (infrastructure health) and legacy score-only endpoints.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "address": {
             "type": "string",
-            "description": "Base contract address (0x-prefixed 40-hex)"
+            "description": "Base contract address (0x-prefixed 40-hex string, chainId 8453) to inspect."
           }
         },
         "required": [
           "address"
         ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
       }
     },
     {
       "name": "m2m_get_gas_metrics",
-      "description": "Return sourced Base gas fee metrics and execution recommendations.",
+      "description": "Fetch real-time Base network gas fee metrics (standard, fast, instant in gwei) and transaction execution recommendations. Sourced for Base Mainnet execution timing; does not inspect contract code or fetch token/DEX pricing.",
       "inputSchema": {
         "type": "object",
         "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
       "name": "m2m_get_token_price",
-      "description": "Return sourced Base DEX token price observation for allowlisted assets (e.g. USDC, WETH).",
+      "description": "Fetch real-time Base DEX liquidity-weighted spot price in USD, contract address, decimals, and pool source for a single allowlisted token symbol (e.g. USDC, WETH, AERO). Does not return historical price series; contrast with m2m_get_dex_liquidity which returns pool reserve depth rather than asset spot prices.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "symbol": {
             "type": "string",
-            "description": "Token symbol (e.g. USDC, WETH)"
+            "description": "Allowlisted token symbol on Base (e.g. USDC, WETH, AERO). Lookups are case-insensitive single symbols."
           }
         },
         "required": [
           "symbol"
         ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
       "name": "m2m_get_dex_liquidity",
-      "description": "Return tracked Base DEX pool reserve, depth, and volume metrics.",
+      "description": "Fetch real-time pool reserve, depth, and volume metrics for tracked Base DEX liquidity pools, with optional single-pair filtering (e.g. WETH-USDC). Evaluates pool liquidity health; contrast with m2m_get_token_price which observes token spot prices.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "pair": {
             "type": "string",
-            "description": "Optional DEX pair identifier (e.g. WETH-USDC)"
+            "description": "Optional Base DEX trading pair identifier (e.g. 'WETH-USDC'). If omitted, returns primary tracked Base pool reserves."
           }
         }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
       "name": "m2m_get_whale_signals",
-      "description": "Return tracked Base whale transfer and concentration signals with source provenance.",
+      "description": "Fetch tracked recent high-value ERC-20 transfer and concentration signals on Base with transaction hash, transfer addresses, and value provenance. Observes large on-chain transfer events; does not inspect contract bytecode or query DEX pricing.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "limit": {
             "type": "number",
-            "description": "Maximum signals to retrieve (1-50)"
+            "description": "Optional maximum number of recent whale transfer signals to return (integer between 1 and 50, default 10)."
           }
         }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
       "name": "m2m_get_service_status",
-      "description": "Return real-time operational status of M2M Sentinel upstream RPC, persistence, and verification rails.",
+      "description": "Fetch real-time operational status, upstream Base RPC quorum health, indexer state, and persistence availability for M2M Sentinel infrastructure. Does not return blockchain or market telemetry.",
       "inputSchema": {
         "type": "object",
         "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     }
   ]

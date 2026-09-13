@@ -16,6 +16,9 @@
     "m2m-sentinel": "./mcp_server.js",
     "m2msentinel": "./mcp_server.js"
   },
+  "scripts": {
+    "test": "node --test"
+  },
   "license": "MIT",
   "homepage": "https://m2msentinel.com",
   "repository": {
