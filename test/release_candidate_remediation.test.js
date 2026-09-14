@@ -127,4 +127,84 @@ describe('Release Candidate Remediation and Parity Tests', () => {
       assert.equal(packInfo.version, '1.2.6', 'Packed version must be exactly 1.2.6');
     });
   });
+
+  describe('4. Dynamic Package Metadata Version Derivation', () => {
+    it('eliminates hardcoded VERSION literal and derives version from colocated package.json', () => {
+      const source = fs.readFileSync(path.join(ROOT, 'mcp_server.js'), 'utf8');
+      assert.ok(!source.match(/const\s+VERSION\s*=\s*['"]1\.2\.6['"]/), 'mcp_server.js must not contain hardcoded VERSION literal');
+      assert.ok(source.includes("require('./package.json')"), 'mcp_server.js must require colocated package.json');
+
+      const mcp = require(path.join(ROOT, 'mcp_server.js'));
+      const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+      assert.equal(mcp.VERSION, pkg.version);
+    });
+
+    it('proves disposable package.json mutation dynamically updates initialize, CLI --version, and User-Agent', () => {
+      const os = require('node:os');
+      const cp = require('node:child_process');
+
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'adv-pub-sdk-'));
+      try {
+        fs.copyFileSync(path.join(ROOT, 'mcp_server.js'), path.join(tmp, 'mcp_server.js'));
+        fs.writeFileSync(path.join(tmp, 'package.json'), JSON.stringify({
+          name: '@m2msentinel/sdk',
+          version: '9.9.9-rc-adversarial'
+        }));
+
+        const script = `
+          const http = require('http');
+          const { handleMcpMessage, runCli, queryApi } = require('./mcp_server.js');
+
+          async function run() {
+            const initResponse = await new Promise((resolve) => {
+              handleMcpMessage({ jsonrpc: '2.0', id: 42, method: 'initialize' }, resolve);
+            });
+
+            let cliOutput = '';
+            const origLog = console.log;
+            console.log = (msg) => { cliOutput += msg + '\\n'; };
+            await runCli(['--version']);
+            console.log = origLog;
+
+            let userAgent = '';
+            const mockServer = http.createServer((req, res) => {
+              userAgent = req.headers['user-agent'] || '';
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ status: 'OK' }));
+            });
+
+            await new Promise((resolve) => mockServer.listen(0, '127.0.0.1', resolve));
+            const port = mockServer.address().port;
+
+            try {
+              await queryApi('/v1/status', 'test-key', 'http://127.0.0.1:' + port);
+            } finally {
+              mockServer.close();
+            }
+
+            console.log(JSON.stringify({
+              initVersion: initResponse.result.serverInfo.version,
+              cliVersion: cliOutput.trim(),
+              userAgent
+            }));
+          }
+          run();
+        `;
+
+        const res = cp.spawnSync(process.execPath, ['-e', script], {
+          cwd: tmp,
+          encoding: 'utf8'
+        });
+
+        assert.equal(res.status, 0, `Subprocess failed: ${res.stderr}`);
+        const output = JSON.parse(res.stdout);
+
+        assert.equal(output.initVersion, '9.9.9-rc-adversarial');
+        assert.equal(output.cliVersion, '@m2msentinel/sdk v9.9.9-rc-adversarial');
+        assert.equal(output.userAgent, 'M2MSentinel-CLI/9.9.9-rc-adversarial');
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+  });
 });
