@@ -186,6 +186,19 @@ interface ExecutionIdentityBlockedErrorInstance extends Error {
 interface BaseAccountPaymasterGuardInstance {
   request(provider: Eip1193Provider, request: WalletSendCallsRequest, options?: BaseAccountGuardCallOptions): Promise<unknown>;
   sendCalls(provider: Eip1193Provider, request: WalletSendCallsRequest, options?: BaseAccountGuardCallOptions): Promise<unknown>;
+  preflightTransaction(transaction: TransactionPreflightRequest, options?: { policy?: BaseAccountCallerPolicy; signAndSend: (tx: any, obs: any) => Promise<unknown>; context?: Record<string, unknown> }): Promise<unknown>;
+  guardTransaction(transaction: TransactionPreflightRequest, options?: { policy?: BaseAccountCallerPolicy; signAndSend: (tx: any, obs: any) => Promise<unknown>; context?: Record<string, unknown> }): Promise<unknown>;
+}
+
+export interface PreflightBeforeSigningOptions {
+  client: Pick<M2MSentinelClient, 'preflightTransaction'>;
+  transaction: TransactionPreflightRequest;
+  policy: (
+    observation: BaseAccountPreflightObservation,
+    context: { transaction: TransactionPreflightRequest; [key: string]: unknown }
+  ) => BaseAccountCallerPolicyResult | Promise<BaseAccountCallerPolicyResult>;
+  signAndSend: (transaction: TransactionPreflightRequest, observation: BaseAccountPreflightObservation) => Promise<unknown>;
+  context?: Record<string, unknown>;
 }
 
 // This source-distributed TypeScript entrypoint targets Node.js/CommonJS
@@ -242,6 +255,13 @@ export function guardWalletSendCalls(options: GuardWalletSendCallsOptions): Prom
 export const preflightWalletSendCalls = guardWalletSendCalls;
 export const sendCallsWithPreflight = guardWalletSendCalls;
 export const executeWalletSendCalls = guardWalletSendCalls;
+
+export function preflightBeforeSigning(options: PreflightBeforeSigningOptions): Promise<unknown> {
+  return runtime().preflightBeforeSigning(options);
+}
+
+export const guardTransaction = preflightBeforeSigning;
+export const preflightTransactionBeforeSigning = preflightBeforeSigning;
 
 export const BaseAccountPaymasterGuard: {
   new (options: BaseAccountPaymasterGuardOptions): BaseAccountPaymasterGuardInstance;

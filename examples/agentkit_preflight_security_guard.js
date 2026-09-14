@@ -8,7 +8,7 @@
  * execution policy before submitting transactions to the Base blockchain.
  */
 
-const { m2mSentinelActionProvider } = require('../public/sdk/index.js');
+const { m2mSentinelActionProvider } = require('../index.js');
 
 // Public contract address used for demonstration:
 const VERIFIED_BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
@@ -72,7 +72,11 @@ async function main() {
   console.log('================================================================');
 }
 
-main().catch(err => {
-  console.error('Execution error:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error('Execution error:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { main };

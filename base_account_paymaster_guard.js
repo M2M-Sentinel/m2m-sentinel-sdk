@@ -810,9 +810,58 @@ class BaseAccountPaymasterGuard {
   sendCalls(provider, request, options = {}) {
     return this.request(provider, request, options);
   }
+
+  preflightTransaction(transaction, options = {}) {
+    return preflightBeforeSigning({
+      client: this.client,
+      transaction,
+      policy: options.policy === undefined ? this.policy : options.policy,
+      signAndSend: options.signAndSend,
+      context: options.context
+    });
+  }
+
+  guardTransaction(transaction, options = {}) {
+    return this.preflightTransaction(transaction, options);
+  }
 }
 
 const BaseAccountExecutionGuard = BaseAccountPaymasterGuard;
+
+/**
+ * Productized single-call preflight verification adapter.
+ *
+ * Preflights a caller transaction against M2M Sentinel, validates decision-grade
+ * evidence without invented safety claims, evaluates an affirmative caller-owned
+ * policy, and forwards to the caller's signing/send callback.
+ */
+async function preflightBeforeSigning({ client, transaction, policy, signAndSend, context } = {}) {
+  assertClient(client);
+  if (typeof policy !== 'function') throw new TypeError('An explicit caller-owned policy function is required.');
+  if (typeof signAndSend !== 'function') throw new TypeError('A caller-owned signing/send callback is required.');
+
+  // Validate and canonicalize input transaction
+  const transactionSnapshot = canonicalTransaction(transaction, 'transaction');
+  const observation = await client.preflightTransaction(cloneJson(transactionSnapshot, 'transaction'));
+  const observationSnapshot = cloneJson(observation, 'observation');
+  assertObservationReady(observationSnapshot, transactionSnapshot);
+
+  let callerContext = { transaction: cloneJson(transactionSnapshot, 'transaction') };
+  if (context !== undefined) {
+    if (!isPlainRecord(context)) throw new TypeError('context must be a JSON object when supplied.');
+    callerContext = { ...cloneJson(context, 'context'), ...callerContext };
+  }
+
+  const policyResult = await policy(cloneJson(observationSnapshot, 'observation'), callerContext);
+  if (!isAffirmativePolicyResult(policyResult)) {
+    blocked('CALLER_POLICY_REJECTED', `Transaction rejected: ${policyRejectionReason(policyResult)}`);
+  }
+
+  return signAndSend(cloneJson(transactionSnapshot, 'transaction'), cloneJson(observationSnapshot, 'observation'));
+}
+
+const guardTransaction = preflightBeforeSigning;
+const preflightTransactionBeforeSigning = preflightBeforeSigning;
 
 /** Construct the public SDK client while keeping credentials caller-owned. */
 function createPublicClient({ baseUrl, apiKey, timeoutMs, sdk } = {}) {
@@ -861,6 +910,9 @@ module.exports = {
   preflightWalletSendCalls,
   sendCallsWithPreflight,
   executeWalletSendCalls,
+  preflightBeforeSigning,
+  guardTransaction,
+  preflightTransactionBeforeSigning,
   BaseAccountPaymasterGuard,
   BaseAccountExecutionGuard,
   createBaseAccountPaymasterGuard: (options) => new BaseAccountPaymasterGuard(options),

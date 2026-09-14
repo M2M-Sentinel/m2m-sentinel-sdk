@@ -57,6 +57,7 @@
     "agent_adapter.js",
     "x402_signer.js",
     "eliza_plugin.js",
+    "langchain_tool.js",
     "mcp_server.js",
     "smithery.yaml",
     "README.md",

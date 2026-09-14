@@ -8,7 +8,7 @@
  * supplies the transaction policy.
  */
 
-const { M2MSentinelClient } = require('../../public/sdk/index.js');
+const { M2MSentinelClient } = require('../../index.js');
 
 async function runLangGraphPreflightExample(policy, options = {}) {
   if (typeof policy !== 'function') {
