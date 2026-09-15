@@ -124,7 +124,7 @@ describe('Release Candidate Remediation and Parity Tests', () => {
       assert.ok(packedFiles.includes('base_account_paymaster_guard.js'), 'Packed tarball must include base_account_paymaster_guard.js');
       assert.ok(packedFiles.includes('index.d.ts'), 'Packed tarball must include index.d.ts');
       assert.ok(packedFiles.includes('typescript/base_account_paymaster_guard.ts'), 'Packed tarball must include typescript/base_account_paymaster_guard.ts');
-      assert.equal(packInfo.version, '1.2.6', 'Packed version must be exactly 1.2.6');
+      assert.equal(packInfo.version, '1.2.7', 'Packed version must be exactly 1.2.7');
     });
   });
 

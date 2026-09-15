@@ -67,7 +67,7 @@ class M2MSentinelActionProvider {
 
     const headers = {
       Accept: 'application/json',
-      'User-Agent': 'M2MSentinel-AgentKit/1.2.6',
+      'User-Agent': 'M2MSentinel-AgentKit/1.2.7',
       ...options.headers
     };
     if (this.apiKey && !headers['x-api-key']) {
