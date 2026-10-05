@@ -1,6 +1,6 @@
 {
   "name": "@m2msentinel/sdk",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "mcpName": "io.github.M2M-Sentinel/m2m-sentinel-sdk",
   "publishConfig": {
     "access": "public"
@@ -52,6 +52,8 @@
   "files": [
     "index.js",
     "index.d.ts",
+    "examples/transaction_preflight.js",
+    "examples/base_account_paymaster_guard.js",
     "base_account_paymaster_guard.js",
     "m2m_sentinel_sdk.js",
     "agent_adapter.js",

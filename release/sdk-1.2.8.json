@@ -1,0 +1,374 @@
+{
+  "schemaVersion": 1,
+  "release": {
+    "status": "awaiting_root_confirmation",
+    "version": "1.2.8",
+    "tag": null,
+    "confirmationRequired": [
+      "tag",
+      "exact source SHA dispatch input matching the clean reviewed branch commit",
+      "final manifest SHA-256"
+    ]
+  },
+  "repository": {
+    "owner": "M2M-Sentinel",
+    "name": "m2m-sentinel-sdk",
+    "url": "https://github.com/M2M-Sentinel/m2m-sentinel-sdk.git"
+  },
+  "workflow": {
+    "file": "publish_sdk.yml",
+    "environment": "npm-release",
+    "publishAction": "npm publish"
+  },
+  "toolchain": {
+    "nodeVersion": "22.23.2",
+    "npmVersion": "11.6.2",
+    "npmPackageTarball": "https://registry.npmjs.org/npm/-/npm-11.6.2.tgz",
+    "npmPackageIntegrity": "sha512-7iKzNfy8lWYs3zq4oFPa8EXZz5xt9gQNKJZau3B1ErLBb6bF7sBJ00x09485DOvRT2l5Gerbl3VlZNT57MxJVA=="
+  },
+  "provenance": {
+    "acceptedArchiveManifestSha256": "872fe747376aeb3356e1a93a31d97ea84e1e8ff271fc47a5e140be91b85801d9",
+    "sourcePathManifestSha256": "43db9f112dd1eb8e17fa3877f1b2658a6c6e3cb20a16acc8b344b6c9527f4142",
+    "payloadSource": "accepted prepared npm-packs-1.2.8 archive manifests; full per-path hashes included below"
+  },
+  "sharedFiles": [
+    {
+      "path": "package/agent_adapter.js",
+      "size": 9142,
+      "sha256": "b3b0c17da6e15a3cd7aad4711766531e666444e00d3097248132eab864802105"
+    },
+    {
+      "path": "package/base_account_paymaster_guard.js",
+      "size": 43794,
+      "sha256": "110d6fb32eca88f71423af1adcf0f4a420a131545c14690f0346a43ada2adbab"
+    },
+    {
+      "path": "package/eliza_plugin.js",
+      "size": 4177,
+      "sha256": "194394abab80e040c57453d026336ba2cafd45b1d7c134a96aa85a701403ad3c"
+    },
+    {
+      "path": "package/examples/base_account_paymaster_guard.js",
+      "size": 5380,
+      "sha256": "a0c05d93720488302454ec6467df739f986676994af073b624b962552b11f274"
+    },
+    {
+      "path": "package/examples/transaction_preflight.js",
+      "size": 15394,
+      "sha256": "64d84227b36b883e371fb902bf5ea252977a17cd071378790d0afa5cdaa2101a"
+    },
+    {
+      "path": "package/index.d.ts",
+      "size": 13269,
+      "sha256": "7ba3a627e0f00d1922ca871ab7dc79104ba8d349a6f95626bf08a9b17e247925"
+    },
+    {
+      "path": "package/index.js",
+      "size": 9118,
+      "sha256": "4f3cb01a0c9bd8325b5d5f8ea41dfc4bac263ca55d02639dd1ed1082e1e63f8e"
+    },
+    {
+      "path": "package/langchain_tool.js",
+      "size": 2913,
+      "sha256": "cf36d1ef222697583959827f6219b165e77fa8dbe355b9ab154d8c3de1fc191f"
+    },
+    {
+      "path": "package/LICENSE",
+      "size": 1069,
+      "sha256": "86fd55a9125964e3654299d57c73986670e53335495d911be70e17837608e3e2"
+    },
+    {
+      "path": "package/m2m_sentinel_sdk.js",
+      "size": 40,
+      "sha256": "2b45c88302dc0c62819d4008f7c54770f770ac79446e0452ae16052c87ab8149"
+    },
+    {
+      "path": "package/mcp_server.js",
+      "size": 23828,
+      "sha256": "1c52c116849f4c02b4375e436e0741cf1397b2c853cec9fa959de5ffe77ae1f9"
+    },
+    {
+      "path": "package/README.md",
+      "size": 6572,
+      "sha256": "e17a7d00d96865e39fa74d9952916ed56d2f98ba9fbdfe898168ad7fc95fc7fa"
+    },
+    {
+      "path": "package/smithery.yaml",
+      "size": 758,
+      "sha256": "952083998dbaa38fb2bd327b1c2777564bdd4c7b6c23ba748138a977a43bc74d"
+    },
+    {
+      "path": "package/typescript/base_account_paymaster_guard.ts",
+      "size": 9821,
+      "sha256": "2da54104dcfc08016f9d76f4c62097f31f270e318b04ebe62c918f0a8393d9e2"
+    },
+    {
+      "path": "package/typescript/index.ts",
+      "size": 10923,
+      "sha256": "3e4b1288c97aa99d84d31f67f784d0a0572b48568365bd34fde98d95283a47d3"
+    },
+    {
+      "path": "package/typescript/package-lock.json",
+      "size": 1492,
+      "sha256": "f8e1348a4f1079497f0923e361929f1912f4524b6e8a1bacb34b7f7afa8da930"
+    },
+    {
+      "path": "package/typescript/package.json",
+      "size": 398,
+      "sha256": "3cabb10166cb0149579dfa4293c3ab85aef800569dae96780c45118160ac0bf9"
+    },
+    {
+      "path": "package/typescript/tsconfig.json",
+      "size": 254,
+      "sha256": "dbf00f4719c4d404b9f2de9ccfcf2728bdb74d213043075abfa9f2ec812ac377"
+    },
+    {
+      "path": "package/typescript/x402.ts",
+      "size": 14543,
+      "sha256": "b317e612ea9a3d58294b2ba493de9012d9c780dcd7ff793ed0c0246c6d92f13b"
+    },
+    {
+      "path": "package/x402_signer.js",
+      "size": 13517,
+      "sha256": "8d37bd39778a29ff7949b9c7ab87100bd9a998e080ac2ed7bbe23c94fc2f9317"
+    }
+  ],
+  "packages": [
+    {
+      "name": "@m2msentinel/sdk",
+      "version": "1.2.8",
+      "repositoryUrl": "https://github.com/M2M-Sentinel/m2m-sentinel-sdk.git",
+      "archive": {
+        "file": "m2msentinel-sdk-1.2.8.tgz",
+        "size": 47227,
+        "sha256": "2b1d2b4210878778ce15765ed8e5ac1439497202e6769864a89f6aef81d56a16",
+        "sha512": "977b1f10c454c72fba8d5dde6ede8dabacd237c1ea67f540b18927686140082c64c5812d693920cdbe60020959f385ef5f50165cfef9a9b71122da8d6c7888c4"
+      },
+      "files": [
+        {
+          "path": "package/agent_adapter.js",
+          "size": 9142,
+          "sha256": "b3b0c17da6e15a3cd7aad4711766531e666444e00d3097248132eab864802105"
+        },
+        {
+          "path": "package/base_account_paymaster_guard.js",
+          "size": 43794,
+          "sha256": "110d6fb32eca88f71423af1adcf0f4a420a131545c14690f0346a43ada2adbab"
+        },
+        {
+          "path": "package/eliza_plugin.js",
+          "size": 4177,
+          "sha256": "194394abab80e040c57453d026336ba2cafd45b1d7c134a96aa85a701403ad3c"
+        },
+        {
+          "path": "package/examples/base_account_paymaster_guard.js",
+          "size": 5380,
+          "sha256": "a0c05d93720488302454ec6467df739f986676994af073b624b962552b11f274"
+        },
+        {
+          "path": "package/examples/transaction_preflight.js",
+          "size": 15394,
+          "sha256": "64d84227b36b883e371fb902bf5ea252977a17cd071378790d0afa5cdaa2101a"
+        },
+        {
+          "path": "package/index.d.ts",
+          "size": 13269,
+          "sha256": "7ba3a627e0f00d1922ca871ab7dc79104ba8d349a6f95626bf08a9b17e247925"
+        },
+        {
+          "path": "package/index.js",
+          "size": 9118,
+          "sha256": "4f3cb01a0c9bd8325b5d5f8ea41dfc4bac263ca55d02639dd1ed1082e1e63f8e"
+        },
+        {
+          "path": "package/langchain_tool.js",
+          "size": 2913,
+          "sha256": "cf36d1ef222697583959827f6219b165e77fa8dbe355b9ab154d8c3de1fc191f"
+        },
+        {
+          "path": "package/LICENSE",
+          "size": 1069,
+          "sha256": "86fd55a9125964e3654299d57c73986670e53335495d911be70e17837608e3e2"
+        },
+        {
+          "path": "package/m2m_sentinel_sdk.js",
+          "size": 40,
+          "sha256": "2b45c88302dc0c62819d4008f7c54770f770ac79446e0452ae16052c87ab8149"
+        },
+        {
+          "path": "package/mcp_server.js",
+          "size": 23828,
+          "sha256": "1c52c116849f4c02b4375e436e0741cf1397b2c853cec9fa959de5ffe77ae1f9"
+        },
+        {
+          "path": "package/package.json",
+          "size": 1721,
+          "sha256": "96b9e09614d0e67674918d8025269740dd45f8c21fec82b062bf4477d79c1557"
+        },
+        {
+          "path": "package/README.md",
+          "size": 6572,
+          "sha256": "e17a7d00d96865e39fa74d9952916ed56d2f98ba9fbdfe898168ad7fc95fc7fa"
+        },
+        {
+          "path": "package/smithery.yaml",
+          "size": 758,
+          "sha256": "952083998dbaa38fb2bd327b1c2777564bdd4c7b6c23ba748138a977a43bc74d"
+        },
+        {
+          "path": "package/typescript/base_account_paymaster_guard.ts",
+          "size": 9821,
+          "sha256": "2da54104dcfc08016f9d76f4c62097f31f270e318b04ebe62c918f0a8393d9e2"
+        },
+        {
+          "path": "package/typescript/index.ts",
+          "size": 10923,
+          "sha256": "3e4b1288c97aa99d84d31f67f784d0a0572b48568365bd34fde98d95283a47d3"
+        },
+        {
+          "path": "package/typescript/package-lock.json",
+          "size": 1492,
+          "sha256": "f8e1348a4f1079497f0923e361929f1912f4524b6e8a1bacb34b7f7afa8da930"
+        },
+        {
+          "path": "package/typescript/package.json",
+          "size": 398,
+          "sha256": "3cabb10166cb0149579dfa4293c3ab85aef800569dae96780c45118160ac0bf9"
+        },
+        {
+          "path": "package/typescript/tsconfig.json",
+          "size": 254,
+          "sha256": "dbf00f4719c4d404b9f2de9ccfcf2728bdb74d213043075abfa9f2ec812ac377"
+        },
+        {
+          "path": "package/typescript/x402.ts",
+          "size": 14543,
+          "sha256": "b317e612ea9a3d58294b2ba493de9012d9c780dcd7ff793ed0c0246c6d92f13b"
+        },
+        {
+          "path": "package/x402_signer.js",
+          "size": 13517,
+          "sha256": "8d37bd39778a29ff7949b9c7ab87100bd9a998e080ac2ed7bbe23c94fc2f9317"
+        }
+      ]
+    },
+    {
+      "name": "m2m-sentinel-sdk",
+      "version": "1.2.8",
+      "repositoryUrl": "https://github.com/M2M-Sentinel/m2m-sentinel-sdk.git",
+      "archive": {
+        "file": "m2m-sentinel-sdk-1.2.8.tgz",
+        "size": 47218,
+        "sha256": "3722b6955fae3d6bf0896ada163eb35e6feb91c4907649ff4880a2cc7f6d79f7",
+        "sha512": "dfae6cd9c8e21377eb97d87d099718bf8e5548e6cb127a4fa39dfba964042d00b4c550d6b0333d46572f238b58e1ffaccd1a4fe77a35851508db8736787cc530"
+      },
+      "files": [
+        {
+          "path": "package/agent_adapter.js",
+          "size": 9142,
+          "sha256": "b3b0c17da6e15a3cd7aad4711766531e666444e00d3097248132eab864802105"
+        },
+        {
+          "path": "package/base_account_paymaster_guard.js",
+          "size": 43794,
+          "sha256": "110d6fb32eca88f71423af1adcf0f4a420a131545c14690f0346a43ada2adbab"
+        },
+        {
+          "path": "package/eliza_plugin.js",
+          "size": 4177,
+          "sha256": "194394abab80e040c57453d026336ba2cafd45b1d7c134a96aa85a701403ad3c"
+        },
+        {
+          "path": "package/examples/base_account_paymaster_guard.js",
+          "size": 5380,
+          "sha256": "a0c05d93720488302454ec6467df739f986676994af073b624b962552b11f274"
+        },
+        {
+          "path": "package/examples/transaction_preflight.js",
+          "size": 15394,
+          "sha256": "64d84227b36b883e371fb902bf5ea252977a17cd071378790d0afa5cdaa2101a"
+        },
+        {
+          "path": "package/index.d.ts",
+          "size": 13269,
+          "sha256": "7ba3a627e0f00d1922ca871ab7dc79104ba8d349a6f95626bf08a9b17e247925"
+        },
+        {
+          "path": "package/index.js",
+          "size": 9118,
+          "sha256": "4f3cb01a0c9bd8325b5d5f8ea41dfc4bac263ca55d02639dd1ed1082e1e63f8e"
+        },
+        {
+          "path": "package/langchain_tool.js",
+          "size": 2913,
+          "sha256": "cf36d1ef222697583959827f6219b165e77fa8dbe355b9ab154d8c3de1fc191f"
+        },
+        {
+          "path": "package/LICENSE",
+          "size": 1069,
+          "sha256": "86fd55a9125964e3654299d57c73986670e53335495d911be70e17837608e3e2"
+        },
+        {
+          "path": "package/m2m_sentinel_sdk.js",
+          "size": 40,
+          "sha256": "2b45c88302dc0c62819d4008f7c54770f770ac79446e0452ae16052c87ab8149"
+        },
+        {
+          "path": "package/mcp_server.js",
+          "size": 23828,
+          "sha256": "1c52c116849f4c02b4375e436e0741cf1397b2c853cec9fa959de5ffe77ae1f9"
+        },
+        {
+          "path": "package/package.json",
+          "size": 1721,
+          "sha256": "6d1b76e98d5de2b8cb4a03235b54ea534375482a3ac1f6b354a464821defbc84"
+        },
+        {
+          "path": "package/README.md",
+          "size": 6572,
+          "sha256": "e17a7d00d96865e39fa74d9952916ed56d2f98ba9fbdfe898168ad7fc95fc7fa"
+        },
+        {
+          "path": "package/smithery.yaml",
+          "size": 758,
+          "sha256": "952083998dbaa38fb2bd327b1c2777564bdd4c7b6c23ba748138a977a43bc74d"
+        },
+        {
+          "path": "package/typescript/base_account_paymaster_guard.ts",
+          "size": 9821,
+          "sha256": "2da54104dcfc08016f9d76f4c62097f31f270e318b04ebe62c918f0a8393d9e2"
+        },
+        {
+          "path": "package/typescript/index.ts",
+          "size": 10923,
+          "sha256": "3e4b1288c97aa99d84d31f67f784d0a0572b48568365bd34fde98d95283a47d3"
+        },
+        {
+          "path": "package/typescript/package-lock.json",
+          "size": 1492,
+          "sha256": "f8e1348a4f1079497f0923e361929f1912f4524b6e8a1bacb34b7f7afa8da930"
+        },
+        {
+          "path": "package/typescript/package.json",
+          "size": 398,
+          "sha256": "3cabb10166cb0149579dfa4293c3ab85aef800569dae96780c45118160ac0bf9"
+        },
+        {
+          "path": "package/typescript/tsconfig.json",
+          "size": 254,
+          "sha256": "dbf00f4719c4d404b9f2de9ccfcf2728bdb74d213043075abfa9f2ec812ac377"
+        },
+        {
+          "path": "package/typescript/x402.ts",
+          "size": 14543,
+          "sha256": "b317e612ea9a3d58294b2ba493de9012d9c780dcd7ff793ed0c0246c6d92f13b"
+        },
+        {
+          "path": "package/x402_signer.js",
+          "size": 13517,
+          "sha256": "8d37bd39778a29ff7949b9c7ab87100bd9a998e080ac2ed7bbe23c94fc2f9317"
+        }
+      ]
+    }
+  ]
+}

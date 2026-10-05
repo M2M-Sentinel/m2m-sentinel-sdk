@@ -2,10 +2,60 @@
 
 Official multi-language client library, **Model Context Protocol (MCP) server**, and **Coinbase AgentKit ActionProvider** for M2M Sentinel — deterministic EVM bytecode capability observations and common-proxy resolution for autonomous applications operating on Base. Callers own transaction policy.
 
+> This export labels npm 1.2.8 as a local release candidate, not a verified published artifact. This candidate version does not establish registry publication or installability. The install commands below use the last-verified npm release 1.2.7.
+
+
+
 [![npm version](https://img.shields.io/npm/v/m2m-sentinel-sdk.svg)](https://www.npmjs.com/package/m2m-sentinel-sdk)
 [![PyPI version](https://img.shields.io/pypi/v/m2m-sentinel.svg)](https://pypi.org/project/m2m-sentinel/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Smithery](https://smithery.ai/badge/m2m-sentinel-sdk)](https://smithery.ai/server/m2m-sentinel-sdk)
+
+---
+
+## Try Base USDC without a wallet or API key
+
+This quickstart uses Base USDC, a published allowlisted sample at
+`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`. The response contains factual
+capability evidence and limitations, not a safety guarantee or transaction
+advice. The live demo can be rate limited (HTTP 429 with `Retry-After`) or
+unavailable when upstream evidence sources fail (HTTP 503).
+
+```bash
+curl --fail-with-body https://api.m2msentinel.com/v1/demo/audit/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+```
+
+```bash
+npm install m2m-sentinel-sdk@1.2.7
+```
+
+```javascript
+const { M2MSentinelClient } = require('m2m-sentinel-sdk');
+(async () => {
+  const client = new M2MSentinelClient();
+  const result = await client.demoAudit('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+  console.log(JSON.stringify(result, null, 2));
+})().catch((error) => { console.error(error.message); process.exitCode = 1; });
+```
+
+```bash
+pip install m2m-sentinel==1.2.7
+```
+
+```python
+from m2m_sentinel import M2MSentinelClient
+
+client = M2MSentinelClient()
+result = client.demo_audit("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
+print(result)
+```
+
+Other addresses receive only the public preview. Full `/v1/audit/:address`
+analysis remains protected by an API key or an explicitly authorized x402
+payment; the demo never pays silently. The client does not automatically retry
+or fall back to a protected route after a demo error. The source SDK export includes a
+runnable no-credential JavaScript example at `examples/try_public_demo.js`;
+it is not included in the last-verified npm 1.2.7 artifact.
 
 ---
 
@@ -24,7 +74,7 @@ npx -y @smithery/cli mcp add M2M-Sentinel/m2m-sentinel-sdk --client claude
   "mcpServers": {
     "m2m-sentinel": {
       "command": "npx",
-      "args": ["-y", "m2m-sentinel-sdk"],
+      "args": ["-y", "m2m-sentinel-sdk@1.2.7"],
       "env": {
         "M2M_SENTINEL_API_KEY": ""
       }
@@ -59,21 +109,23 @@ const agentKit = await AgentKit.from({
 
 ## 📦 3. JavaScript / TypeScript Client
 
+### Authenticated SDK quickstart
+
 ```bash
-npm install m2m-sentinel-sdk
+npm install m2m-sentinel-sdk@1.2.7
 ```
 
 ```javascript
 const { M2MSentinelClient } = require('m2m-sentinel-sdk');
 
-const client = new M2MSentinelClient();
+const client = new M2MSentinelClient({ apiKey: process.env.M2M_SENTINEL_API_KEY });
 
 async function main() {
-  const audit = await client.auditContract('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
-  console.log('Proxy Detected:', audit.audit.proxyResolution.isProxy);
-  console.log('Proxy Target:', audit.audit.proxyResolution.targetAddress);
-  console.log('Capabilities:', audit.audit.verdict.executableCapabilities);
-  console.log('Evidence:', audit.audit.dissection.capabilities);
+const audit = await client.auditContract('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+console.log('Proxy Detected:', audit.audit.proxyResolution.isProxy);
+console.log('Proxy Target:', audit.audit.proxyResolution.targetAddress);
+console.log('Capabilities:', audit.audit.verdict.executableCapabilities);
+console.log('Evidence:', audit.audit.dissection.capabilities);
 }
 
 main().catch(console.error);
@@ -98,18 +150,15 @@ make a safety claim. See `examples/base_account_paymaster_guard.js` for a no-net
 ## 🐍 4. Python Client
 
 ```bash
-pip install m2m-sentinel
+pip install m2m-sentinel==1.2.7
 ```
 
 ```python
 from m2m_sentinel import M2MSentinelClient
 
 client = M2MSentinelClient()
-audit = client.audit_contract("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
-print("Proxy detected:", audit["audit"]["proxyResolution"]["isProxy"])
-print("Proxy target:", audit["audit"]["proxyResolution"].get("targetAddress"))
-print("Capabilities:", audit["audit"]["verdict"]["executableCapabilities"])
-print("Evidence:", audit["audit"]["dissection"]["capabilities"])
+result = client.demo_audit("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
+print(result)
 ```
 
 ---

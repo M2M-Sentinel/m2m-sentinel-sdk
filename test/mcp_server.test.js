@@ -11,6 +11,7 @@ const {
   pathForTool,
   handleMcpMessage
 } = require('../mcp_server.js');
+const { version: packageVersion } = require('../package.json');
 
 const VALID_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
@@ -185,7 +186,7 @@ describe('M2M Sentinel MCP Server Glama TDQS Remediation Tests', () => {
 
       const res = response.result;
       assert.strictEqual(res.serverInfo.name, 'm2m-sentinel-mcp');
-      assert.strictEqual(res.serverInfo.version, '1.2.7');
+      assert.strictEqual(res.serverInfo.version, packageVersion);
       assert.deepStrictEqual(res.capabilities, { tools: {} });
 
       assert(typeof res.instructions === 'string' && res.instructions.length > 50);

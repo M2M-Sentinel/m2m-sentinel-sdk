@@ -58,43 +58,42 @@ class M2MSentinelClient {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs || this.timeoutMs);
-    let response;
     try {
-      response = await fetch(this.baseUrl + path, {
+      const response = await fetch(this.baseUrl + path, {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal
       });
+
+      const text = await response.text();
+      let data = null;
+      if (text) {
+        try { data = JSON.parse(text); } catch (_) { data = { raw: text }; }
+      }
+
+      const paymentRequired = parseX402Header(response.headers.get('PAYMENT-REQUIRED'));
+      const paymentResponse = parseX402Header(response.headers.get('PAYMENT-RESPONSE')) || response.headers.get('PAYMENT-RESPONSE');
+      if (response.ok) return data;
+
+      const details = {
+        status: response.status,
+        body: data,
+        retryAfter: response.headers.get('Retry-After'),
+        paymentRequired,
+        paymentResponse
+      };
+      const message = data && data.message ? data.message : 'M2M Sentinel HTTP ' + response.status;
+      if (response.status === 402) throw new PaymentRequiredError(message, details);
+      if (response.status === 429) throw new RateLimitedError(message, details);
+      if (response.status === 503 && data && data.error === 'DATA_SOURCE_UNAVAILABLE') throw new DataSourceUnavailableError(message, details);
+      throw new M2MSentinelError(message, details);
     } catch (err) {
       if (err && err.name === 'AbortError') throw new M2MSentinelError('M2M Sentinel request timed out', { status: 0 });
       throw err;
     } finally {
       clearTimeout(timeout);
     }
-
-    const text = await response.text();
-    let data = null;
-    if (text) {
-      try { data = JSON.parse(text); } catch (_) { data = { raw: text }; }
-    }
-
-    const paymentRequired = parseX402Header(response.headers.get('PAYMENT-REQUIRED'));
-    const paymentResponse = parseX402Header(response.headers.get('PAYMENT-RESPONSE')) || response.headers.get('PAYMENT-RESPONSE');
-    if (response.ok) return data;
-
-    const details = {
-      status: response.status,
-      body: data,
-      retryAfter: response.headers.get('Retry-After'),
-      paymentRequired,
-      paymentResponse
-    };
-    const message = data && data.message ? data.message : 'M2M Sentinel HTTP ' + response.status;
-    if (response.status === 402) throw new PaymentRequiredError(message, details);
-    if (response.status === 429) throw new RateLimitedError(message, details);
-    if (response.status === 503 && data && data.error === 'DATA_SOURCE_UNAVAILABLE') throw new DataSourceUnavailableError(message, details);
-    throw new M2MSentinelError(message, details);
   }
 
   getStatus() { return this.request('GET', '/v1/status'); }

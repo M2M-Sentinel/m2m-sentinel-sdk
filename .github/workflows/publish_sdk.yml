@@ -1,0 +1,149 @@
+name: Publish SDK aliases (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_enabled:
+        description: Enable publication only for a root-authorized, reviewed release run.
+        type: boolean
+        required: true
+        default: false
+      expected_version:
+        description: Must match the committed release manifest.
+        type: string
+        required: true
+        default: 1.2.8
+      expected_source_sha:
+        description: Exact clean branch commit SHA shown by this workflow run.
+        type: string
+        required: false
+        default: ''
+      expected_tag:
+        description: Root-confirmed release tag; it must be absent before publication.
+        type: string
+        required: false
+        default: ''
+      expected_manifest_sha256:
+        description: SHA-256 of the committed release/sdk-1.2.8.json.
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-publish-${{ inputs.expected_version }}
+  cancel-in-progress: false
+
+jobs:
+  prepare-and-verify:
+    name: Local tests and archive parity (no OIDC)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the manually selected branch commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up pinned Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.2
+          package-manager-cache: false
+
+      - name: Fetch and verify pinned npm CLI; pack and verify both aliases
+        run: node scripts/release/sdk-release.mjs prepare --manifest release/sdk-1.2.8.json --output "$RUNNER_TEMP/sdk-release-output"
+
+      - name: Run local tests with npm 11.6.2
+        shell: bash
+        run: |
+          npm_cli="$RUNNER_TEMP/sdk-release-output/toolchain/npm-cli/package/bin/npm-cli.js"
+          npm_bin="$RUNNER_TEMP/sdk-release-output/npm-bin"
+          empty_user_npmrc="$RUNNER_TEMP/sdk-release-output/empty-user.npmrc"
+          empty_global_npmrc="$RUNNER_TEMP/sdk-release-output/empty-global.npmrc"
+          mkdir -p "$npm_bin"
+          : > "$empty_user_npmrc"
+          : > "$empty_global_npmrc"
+          cat > "$npm_bin/npm" <<'EOF'
+          #!/usr/bin/env bash
+          exec node "$RUNNER_TEMP/sdk-release-output/toolchain/npm-cli/package/bin/npm-cli.js" "$@"
+          EOF
+          chmod 755 "$npm_bin/npm"
+          echo "$npm_bin" >> "$GITHUB_PATH"
+          export PATH="$npm_bin:$PATH"
+          export NPM_CONFIG_USERCONFIG="$empty_user_npmrc"
+          export NPM_CONFIG_GLOBALCONFIG="$empty_global_npmrc"
+          export NPM_CONFIG_AUDIT=false
+          export NPM_CONFIG_FUND=false
+          test "$(node "$npm_cli" --version)" = "11.6.2"
+          npm test
+
+      - name: Validate root-supplied identity for a publish-enabled run
+        if: ${{ inputs.publish_enabled }}
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          EXPECTED_TAG: ${{ inputs.expected_tag }}
+          EXPECTED_MANIFEST_SHA256: ${{ inputs.expected_manifest_sha256 }}
+          SDK_RELEASE_DISPATCH_ACTOR: ${{ vars.SDK_RELEASE_DISPATCH_ACTOR }}
+        run: node scripts/release/sdk-release.mjs validate-dispatch --manifest release/sdk-1.2.8.json
+
+      - name: Upload the verified alias tarballs and npm CLI
+        if: ${{ inputs.publish_enabled }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sdk-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sdk-release-output/publish-bundle/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish after read-only preflight (OIDC)
+    if: ${{ inputs.publish_enabled }}
+    needs: prepare-and-verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: npm-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Set up pinned Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.2
+          package-manager-cache: false
+
+      - name: Download only this run's verified release bundle
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: sdk-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sdk-release-bundle
+
+      - name: Recheck identity, both existing versions, then publish and verify sequentially
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          EXPECTED_TAG: ${{ inputs.expected_tag }}
+          EXPECTED_MANIFEST_SHA256: ${{ inputs.expected_manifest_sha256 }}
+          SDK_RELEASE_DISPATCH_ACTOR: ${{ vars.SDK_RELEASE_DISPATCH_ACTOR }}
+          SDK_RELEASE_RECEIPT_PATH: ${{ runner.temp }}/sdk-release-bundle/publish-status.json
+        run: node "$RUNNER_TEMP/sdk-release-bundle/sdk-release.mjs" publish --bundle "$RUNNER_TEMP/sdk-release-bundle" --manifest "$RUNNER_TEMP/sdk-release-bundle/sdk-1.2.8.json"
+
+      - name: Print non-secret alias publication receipt
+        if: ${{ always() }}
+        env:
+          SDK_RELEASE_RECEIPT_PATH: ${{ runner.temp }}/sdk-release-bundle/publish-status.json
+        shell: bash
+        run: |
+          if [ -s "$SDK_RELEASE_RECEIPT_PATH" ]; then
+            cat "$SDK_RELEASE_RECEIPT_PATH"
+          else
+            printf '%s\n' '{"status":"no-receipt-created","publishClaim":"none","reason":"publisher stopped before writing a receipt"}'
+          fi
