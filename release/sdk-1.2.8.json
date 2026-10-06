@@ -3,7 +3,7 @@
   "release": {
     "status": "awaiting_root_confirmation",
     "version": "1.2.8",
-    "tag": null,
+    "tag": "1.2.8",
     "confirmationRequired": [
       "tag",
       "exact source SHA dispatch input matching the clean reviewed branch commit",

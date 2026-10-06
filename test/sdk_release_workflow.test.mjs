@@ -91,7 +91,7 @@ test('release manifest binds both aliases and leaves root-only identity pending'
   assert.equal(validateManifest(manifest), manifest);
   assert.equal(manifest.release.version, '1.2.8');
   assert.equal(manifest.release.status, 'awaiting_root_confirmation');
-  assert.equal(manifest.release.tag, null);
+  assert.equal(manifest.release.tag, '1.2.8');
   assert.equal(Object.hasOwn(manifest.release, 'sourceCommitSha'), false);
   assert.equal(manifest.packages.length, 2);
   assert.deepEqual(manifest.packages.map((pkg) => pkg.name).sort(), ['@m2msentinel/sdk', 'm2m-sentinel-sdk']);
@@ -137,7 +137,7 @@ test('dispatch identity requires the clean exact branch SHA and committed manife
   const manifest = loadManifest();
   const ready = structuredClone(manifest);
   ready.release.status = 'ready';
-  ready.release.tag = 'v1.2.8';
+  ready.release.tag = '1.2.8';
   const raw = Buffer.from(JSON.stringify(ready));
   const sourceSha = 'a'.repeat(40);
   const dispatchContext = dispatchContextFromEnvironment({
@@ -152,19 +152,66 @@ test('dispatch identity requires the clean exact branch SHA and committed manife
     manifestBytes: raw,
     expectedVersion: '1.2.8',
     expectedSourceSha: sourceSha,
-    expectedTag: 'v1.2.8',
+    expectedTag: '1.2.8',
     expectedManifestSha256: sha256(raw),
     ...dispatchContext
   };
   assert.deepEqual(validateArtifactDispatch(ready, expected), {
-    version: '1.2.8', tag: 'v1.2.8', sourceSha, manifestSha256: sha256(raw)
+    version: '1.2.8', tag: '1.2.8', sourceSha, manifestSha256: sha256(raw)
   });
   assert.throws(() => validateArtifactDispatch(ready, { ...expected, expectedSourceSha: 'b'.repeat(40) }), /github\.sha/);
   assert.throws(() => validateArtifactDispatch(ready, { ...expected, expectedTag: 'v9.9.9' }), /tag does not match/);
-  assert.throws(() => validateArtifactDispatch(ready, { ...expected, githubRefType: 'tag', githubRef: 'refs/tags/v1.2.8' }), /reviewed branch/);
+  assert.throws(() => validateArtifactDispatch(ready, { ...expected, githubRefType: 'tag', githubRef: 'refs/tags/1.2.8' }), /reviewed branch/);
   assert.throws(() => validateArtifactDispatch(ready, { ...expected, githubActor: 'other' }), /release operator/);
 });
 
+test('dispatch rejects superseded Windows and tampered manifest digests', () => {
+  const manifest = structuredClone(loadManifest());
+  manifest.release.status = 'ready';
+  manifest.release.tag = '1.2.8';
+  const raw = Buffer.from(JSON.stringify(manifest));
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'sdk-release-digest-fixture-'));
+  try {
+    mkdirSync(path.join(directory, 'release'), { recursive: true });
+    writeFileSync(path.join(directory, 'release', 'sdk-1.2.8.json'), raw);
+    execFileSync('git', ['init', '-q'], { cwd: directory });
+    execFileSync('git', ['config', 'user.name', 'SDK release test'], { cwd: directory });
+    execFileSync('git', ['config', 'user.email', 'sdk-release-test@example.invalid'], { cwd: directory });
+    execFileSync('git', ['add', 'release/sdk-1.2.8.json'], { cwd: directory });
+    execFileSync('git', ['commit', '-q', '-m', 'release digest fixture'], { cwd: directory });
+    const sourceSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: directory, encoding: 'utf8' }).trim();
+    const expected = {
+      manifestBytes: raw,
+      expectedVersion: '1.2.8',
+      expectedSourceSha: sourceSha,
+      expectedTag: '1.2.8',
+      expectedManifestSha256: sha256(raw),
+      githubActor: 'release-operator',
+      allowedActor: 'release-operator',
+      githubRepository: 'M2M-Sentinel/m2m-sentinel-sdk',
+      githubSha: sourceSha,
+      githubRef: 'refs/heads/release-review',
+      githubRefType: 'branch',
+      remoteTagExists: () => false,
+      repositoryRoot: directory
+    };
+
+    assert.equal(validateDispatch(manifest, expected).manifestSha256, sha256(raw));
+    assert.throws(() => validateDispatch(manifest, {
+      ...expected,
+      expectedManifestSha256: '54a14c29ca823311f61184c90f42337bcb117e4bee89bf7c45a1cbcdcf3abf12'
+    }), /Dispatch manifest SHA-256 does not match the committed manifest/);
+
+    const tamperedBytes = Buffer.concat([raw, Buffer.from('\n')]);
+    const tamperedManifest = JSON.parse(tamperedBytes.toString('utf8'));
+    assert.throws(() => validateDispatch(tamperedManifest, {
+      ...expected,
+      manifestBytes: tamperedBytes
+    }), /Dispatch manifest SHA-256 does not match the committed manifest/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 test('dispatch validation rejects either v-prefixed or bare version tag', () => {
   for (const selectedTag of ['v1.2.8', '1.2.8']) {
     const manifest = structuredClone(loadManifest());
